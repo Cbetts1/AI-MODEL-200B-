@@ -1,0 +1,42 @@
+# config/aura.yaml — Main runtime configuration for AURA.
+#
+# Edit this file to configure the model backend, memory path, and features.
+# Do NOT commit secrets (API keys) to version control — use environment
+# variables or a separate secrets.yaml (git-ignored).
+
+# ── Model backend ──────────────────────────────────────────────────────────────
+model:
+  # "local"  → run inference on this machine (requires llama-cpp-python or Ollama)
+  # "remote" → call an OpenAI-compatible HTTP endpoint
+  backend: remote
+
+  local:
+    # "llamacpp" uses llama-cpp-python; "ollama" uses the Ollama client + server.
+    engine: llamacpp
+    model_path: models/weights/model.gguf
+    context_length: 4096
+    n_threads: 4         # set to your CPU core count
+
+  remote:
+    # Works with: OpenAI, Ollama (localhost), LM Studio, vLLM, LocalAI, etc.
+    base_url: http://localhost:11434/v1
+    api_key: ""          # leave blank for local servers; or use $OPENAI_API_KEY
+    model_name: llama3
+    temperature: 0.7
+    max_tokens: 2048
+
+# ── Memory ─────────────────────────────────────────────────────────────────────
+memory:
+  # Directory where session history files are stored.
+  # Default: ~/.aura/memory/
+  dir: ~/.aura/memory
+
+# ── Identity ───────────────────────────────────────────────────────────────────
+identity:
+  config_path: config/identity.yaml
+
+# ── Features ───────────────────────────────────────────────────────────────────
+features:
+  voice: false          # set true when voice integration is ready
+  video: false          # set true when video integration is ready
+  screen_share: false   # set true when screen-share integration is ready

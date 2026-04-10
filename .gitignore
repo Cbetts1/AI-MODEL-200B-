@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+*.whl
+.venv/
+venv/
+env/
+.env
+
+# Model weights & large binary files
+*.bin
+*.gguf
+*.ggml
+*.pt
+*.pth
+*.safetensors
+models/weights/
+
+# Android / APK build artifacts
+*.apk
+*.aab
+*.keystore
+*.jks
+build/
+.gradle/
+local.properties
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs and temp files
+*.log
+*.tmp
+tmp/
+.tmp/
+
+# Config overrides with secrets (keep aura.yaml template, not secrets)
+config/secrets.yaml
+.env.local
