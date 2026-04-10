@@ -1,0 +1,23 @@
+# Runtime dependencies — install with: pip install -r requirements.txt
+# All versions are minimum; pin them in your deployment as needed.
+
+# ── Core ──────────────────────────────────────────────────────────────────────
+pyyaml>=6.0          # YAML config parsing (aura.yaml, identity.yaml)
+rich>=13.0           # Beautiful terminal output for the CLI
+click>=8.1           # CLI framework (commands, options, help text)
+requests>=2.31       # HTTP client used by remote model backend & web-search tool
+
+# ── Local model backend ───────────────────────────────────────────────────────
+# Uncomment the backend(s) you actually want to run locally.
+# llama-cpp-python>=0.2.0   # llama.cpp Python bindings (local inference)
+# ollama>=0.1.0             # Ollama Python client (runs models as a local server)
+
+# ── Remote / OpenAI-compatible backend ────────────────────────────────────────
+openai>=1.0          # OpenAI-compatible client (works with Ollama, LM Studio, etc.)
+
+# ── Voice integration (optional) ─────────────────────────────────────────────
+# SpeechRecognition>=3.10   # Microphone → text
+# pyttsx3>=2.90             # Text → speech (offline, cross-platform)
+
+# ── Testing ───────────────────────────────────────────────────────────────────
+pytest>=7.4
