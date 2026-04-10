@@ -76,11 +76,16 @@ def main(ctx: click.Context, config: str) -> None:
 # ── chat command ───────────────────────────────────────────────────────────────
 
 @main.command()
+@click.argument("message", default=None, required=False)
 @click.option("--once", default=None, metavar="MESSAGE", help="Send one message and exit.")
 @click.option("--session", default=None, metavar="ID", help="Resume a previous session by ID.")
 @click.pass_context
-def chat(ctx: click.Context, once: str | None, session: str | None) -> None:
-    """Start an interactive chat session with AURA."""
+def chat(ctx: click.Context, message: str | None, once: str | None, session: str | None) -> None:
+    """Start an interactive chat session with AURA.
+
+    Optionally pass MESSAGE as a positional argument to send a single message
+    and exit (equivalent to --once).
+    """
     config_path = ctx.obj["config"]
     engine = _load_engine(config_path)
 
@@ -89,8 +94,11 @@ def chat(ctx: click.Context, once: str | None, session: str | None) -> None:
         engine.memory.load(engine.session)
         console.print(f"[dim]Resumed session {session}[/]")
 
-    if once:
-        reply = engine.chat(once)
+    # Positional argument takes precedence over --once when both are supplied.
+    # Click passes None (not "") for a missing optional argument, so `or` is safe here.
+    one_shot = message or once
+    if one_shot:
+        reply = engine.chat(one_shot)
         _print_reply(reply, engine.persona.name)
         return
 
