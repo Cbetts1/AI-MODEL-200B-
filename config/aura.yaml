@@ -137,3 +137,34 @@ features:
   templates: true       # enable pre-fab template system (20 built-in)
   streaming: true       # SSE streaming via /v1/chat/stream
   agent_loop: true      # multi-step agentic tool use
+
+# ── Governance ──────────────────────────────────────────────────────────────────
+# AURA refuses requests that violate legal or ethical boundaries.
+# The governance engine is always active and cannot be disabled.
+governance:
+  enabled: true         # always on — cannot be turned off
+
+# ── Storage ────────────────────────────────────────────────────────────────────
+# Pluggable backend for persistent key-value data.
+# "file"   → JSON files in ~/.aura/storage/  (default, zero dependencies)
+# "sqlite" → SQLite database at ~/.aura/storage/aura.db  (better performance)
+storage:
+  backend: file
+  dir: ~/.aura/storage
+
+# ── Plugins ────────────────────────────────────────────────────────────────────
+# AURA loads extra tools from .py files in plugin directories.
+# Drop a file with a Tool subclass into any listed directory and it will be
+# auto-discovered on next start.  Plugins cannot override built-in tools.
+plugins:
+  enabled: true
+  dirs:
+    - plugins/            # project-local plugins directory
+    - ~/.aura/plugins/    # user-global plugins directory
+
+# ── Self-Build ─────────────────────────────────────────────────────────────────
+# AURA's self-improvement proposal system.  Proposals are never auto-applied —
+# they wait for explicit human approval.
+self_build:
+  enabled: true
+  store_dir: ~/.aura/self_build
