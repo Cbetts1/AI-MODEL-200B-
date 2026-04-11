@@ -4,6 +4,7 @@ Commands
 --------
   aura chat               Interactive REPL chat with AURA.
   aura chat --once MSG    Send a single message and exit.
+  aura serve              Start the HTTP/JSON API server (cloud-native).
   aura tools              List all available tools.
   aura version            Print the AURA version.
 
@@ -15,14 +16,17 @@ Usage
     pip install -e .    # installs the `aura` command
     aura --help
     aura chat
+    aura serve          # run AURA on the network
 """
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
 import click
+import yaml
 from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Prompt
@@ -51,6 +55,11 @@ def _load_engine(config_path: str):
     except Exception as exc:  # noqa: BLE001
         console.print(f"[red]Failed to load engine:[/] {exc}")
         sys.exit(1)
+
+
+def _load_raw_config(config_path: str) -> dict:
+    """Return the raw dict from aura.yaml."""
+    return yaml.safe_load(Path(config_path).read_text(encoding="utf-8")) or {}
 
 
 def _print_reply(reply: str, name: str = "AURA") -> None:
@@ -134,6 +143,34 @@ def chat(ctx: click.Context, message: str | None, once: str | None, session: str
             _print_reply(reply, engine.persona.name)
         except Exception as exc:  # noqa: BLE001
             console.print(f"[red]Error:[/] {exc}")
+
+
+# ── serve command ──────────────────────────────────────────────────────────────
+
+@main.command()
+@click.option("--host", default=None, help="Bind address (default from config or 0.0.0.0).")
+@click.option("--port", default=None, type=int, help="Port number (default from config or 8000).")
+@click.option("--token", default=None, metavar="TOKEN", help="Bearer token for auth (overrides config).")
+@click.pass_context
+def serve(ctx: click.Context, host: str | None, port: int | None, token: str | None) -> None:
+    """Start the AURA HTTP/JSON API server.
+
+    AURA is cloud-native — run it on any machine and access it from web
+    pages, other servers, or any device on the network.
+    """
+    config_path = ctx.obj["config"]
+    engine = _load_engine(config_path)
+
+    cfg = _load_raw_config(config_path)
+    server_cfg = cfg.get("server", {})
+
+    final_host = host or server_cfg.get("host", "0.0.0.0")
+    final_port = port or server_cfg.get("port", 8000)
+    # CLI flag > env var > config file
+    final_token = token or os.environ.get("AURA_API_TOKEN") or server_cfg.get("api_token", "")
+
+    from .api import run_server  # noqa: PLC0415
+    run_server(engine, host=final_host, port=final_port, api_token=final_token)
 
 
 # ── tools command ──────────────────────────────────────────────────────────────

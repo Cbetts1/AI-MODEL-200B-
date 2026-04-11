@@ -1,15 +1,18 @@
 # AURA Architecture
 
+> Designed and founded by Christopher Betts.  Free AI for everyone.
+
 ## Overview
 
 AURA follows a layered, single-responsibility architecture.  Each layer
 communicates only with the layer directly below it through well-defined
-interfaces.
+interfaces.  AURA is cloud-native — it runs as a CLI, an HTTP API server,
+or inside a Docker container.  It is not constrained to a single device.
 
 ```
 ┌─────────────────────────────────────────────────────┐
 │                     USER / UI                       │
-│           CLI (click + rich)   │   future GUI       │
+│       CLI (click + rich)  │  HTTP API  │ future GUI │
 └────────────────────┬────────────────────────────────┘
                      │ user message
 ┌────────────────────▼────────────────────────────────┐
@@ -67,7 +70,8 @@ interfaces.
 
 | Module | Responsibility |
 |---|---|
-| `cli.py` | Click CLI: `aura chat`, `aura tools`, `aura version` |
+| `cli.py` | Click CLI: `aura chat`, `aura serve`, `aura tools`, `aura version` |
+| `api.py` | Lightweight HTTP/JSON API server (zero extra deps, cloud-native) |
 | `gui/` | Placeholder package for future web/Qt GUI |
 
 ### `aura/integrations/`
