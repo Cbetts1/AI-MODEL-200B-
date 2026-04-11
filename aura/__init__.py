@@ -7,5 +7,5 @@ and help millions.  AURA runs anywhere: on a laptop, a cloud server, or
 embedded in a web page.
 """
 
-__version__ = "0.6.0"
+__version__ = "0.7.0"
 __author__ = "Christopher Betts"

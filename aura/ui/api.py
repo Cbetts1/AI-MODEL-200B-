@@ -22,6 +22,20 @@ Public Endpoints
   POST /v1/self_build/propose    Submit a self-build proposal for human review.
   POST /v1/governance/check      Check whether a message is allowed by policy.
 
+Virtual Cloud Endpoints
+-----------------------
+  GET  /v1/cloud/status          Full virtual cloud status snapshot.
+  GET  /v1/cloud/cpu             vCPU stats (workers, queued, running, done).
+  GET  /v1/cloud/network         Virtual network state and routing info.
+  GET  /v1/cloud/storage         Cloud storage namespace and usage stats.
+  GET  /v1/cloud/servers         List all virtual servers and their routes.
+  POST /v1/cloud/servers         Spawn a new virtual server.
+  DELETE /v1/cloud/servers/{id}  Destroy a virtual server.
+  GET  /v1/cloud/routes          List all global cloud routes.
+  POST /v1/cloud/routes          Register a new global cloud route.
+  DELETE /v1/cloud/routes        Remove a global cloud route.
+  POST /v1/cloud/build           Expand / modify virtual infrastructure.
+
 Admin Endpoints (require ``Authorization: Bearer <AURA_ADMIN_TOKEN>``)
 ----------------------------------------------------------------------
   GET  /admin               Admin maintenance dashboard (HTML)
@@ -364,6 +378,40 @@ class AuraAPIHandler(BaseHTTPRequestHandler):
             })
             return
 
+        # ── Virtual cloud GET routes ───────────────────────────────────────────
+
+        if self.path == "/v1/cloud/status":
+            _json_response(self, HTTPStatus.OK, self.engine.cloud.status())
+            return
+
+        if self.path == "/v1/cloud/cpu":
+            _json_response(self, HTTPStatus.OK, self.engine.cloud.cpu.stats())
+            return
+
+        if self.path == "/v1/cloud/network":
+            _json_response(self, HTTPStatus.OK, self.engine.cloud.network.status())
+            return
+
+        if self.path == "/v1/cloud/storage":
+            _json_response(self, HTTPStatus.OK, {
+                "stats": self.engine.cloud.storage.stats(),
+                "usage": self.engine.cloud.storage.usage(),
+                "namespaces": self.engine.cloud.storage.namespaces(),
+            })
+            return
+
+        if self.path == "/v1/cloud/servers":
+            _json_response(self, HTTPStatus.OK, {
+                "servers": self.engine.cloud.list_servers(),
+            })
+            return
+
+        if self.path == "/v1/cloud/routes":
+            _json_response(self, HTTPStatus.OK, {
+                "routes": self.engine.cloud.router.list_routes(),
+            })
+            return
+
         _json_response(self, HTTPStatus.NOT_FOUND, {"error": "not found"})
 
     # ── POST routes ───────────────────────────────────────────────────────────
@@ -497,6 +545,61 @@ class AuraAPIHandler(BaseHTTPRequestHandler):
             })
             return
 
+        # ── Virtual cloud POST routes ──────────────────────────────────────────
+
+        if self.path == "/v1/cloud/servers":
+            body = _read_json_body(self)
+            if body is None or "name" not in body:
+                _json_response(
+                    self, HTTPStatus.BAD_REQUEST,
+                    {"error": "request body must be JSON with a 'name' field"},
+                )
+                return
+            name = str(body["name"]).strip()
+            if not name:
+                _json_response(self, HTTPStatus.BAD_REQUEST, {"error": "name must not be empty"})
+                return
+            srv = self.engine.cloud.spawn_server(name, auto_start=True)
+            _json_response(self, HTTPStatus.OK, {"server": srv.status()})
+            return
+
+        if self.path == "/v1/cloud/routes":
+            body = _read_json_body(self)
+            if body is None or "route" not in body:
+                _json_response(
+                    self, HTTPStatus.BAD_REQUEST,
+                    {"error": "request body must be JSON with a 'route' field"},
+                )
+                return
+            route_key = str(body["route"]).strip()
+            description = str(body.get("description", ""))
+            # Register route that returns a static response or echo
+            static_response = body.get("response", {"registered": True})
+            added = self.engine.cloud.add_route(
+                route_key,
+                lambda req, _r=static_response: _r,
+                description=description,
+            )
+            _json_response(self, HTTPStatus.OK, {
+                "route": route_key,
+                "added": added,
+                "description": description,
+            })
+            return
+
+        if self.path == "/v1/cloud/build":
+            body = _read_json_body(self)
+            if body is None or "action" not in body:
+                _json_response(
+                    self, HTTPStatus.BAD_REQUEST,
+                    {"error": "request body must be JSON with an 'action' field"},
+                )
+                return
+            action = str(body.pop("action"))
+            result = self.engine.cloud.build(action, **body)
+            _json_response(self, HTTPStatus.OK, result)
+            return
+
         # ── Admin POST routes ──────────────────────────────────────────────────
         if self.path == "/admin/restart":
             if not self.admin_token:
@@ -564,8 +667,36 @@ class AuraAPIHandler(BaseHTTPRequestHandler):
 
         _json_response(self, HTTPStatus.NOT_FOUND, {"error": "not found"})
 
+    # ── DELETE routes ─────────────────────────────────────────────────────────
 
-# ── factory ────────────────────────────────────────────────────────────────────
+    def do_DELETE(self) -> None:  # noqa: N802
+        """Handle DELETE requests for virtual cloud resource teardown."""
+        # DELETE /v1/cloud/servers/{name}
+        if self.path.startswith("/v1/cloud/servers/"):
+            name = self.path[len("/v1/cloud/servers/"):]
+            if not name:
+                _json_response(self, HTTPStatus.BAD_REQUEST, {"error": "server name required"})
+                return
+            removed = self.engine.cloud.destroy_server(name)
+            _json_response(self, HTTPStatus.OK, {"server": name, "removed": removed})
+            return
+
+        # DELETE /v1/cloud/routes  (body: {"route": "GET /path"})
+        if self.path == "/v1/cloud/routes":
+            body = _read_json_body(self)
+            if body is None or "route" not in body:
+                _json_response(
+                    self, HTTPStatus.BAD_REQUEST,
+                    {"error": "request body must be JSON with a 'route' field"},
+                )
+                return
+            route_key = str(body["route"]).strip()
+            removed = self.engine.cloud.remove_route(route_key)
+            _json_response(self, HTTPStatus.OK, {"route": route_key, "removed": removed})
+            return
+
+        _json_response(self, HTTPStatus.NOT_FOUND, {"error": "not found"})
+
 
 def make_handler_class(engine: AuraEngine, api_token: str = "", admin_token: str = "") -> type:
     """Return a handler class with *engine*, *api_token*, and *admin_token* baked in."""
@@ -589,7 +720,7 @@ def run_server(
     """Start the HTTP API server (blocks until interrupted)."""
     handler_cls = make_handler_class(engine, api_token=api_token, admin_token=admin_token)
     server = HTTPServer((host, port), handler_cls)
-    print(f"🚀 AURA v0.6.0 — AI Unified Reasoning Architecture")
+    print(f"🚀 AURA v0.7.0 — AI Unified Reasoning Architecture")
     print(f"")
     print(f"   Web UI:  http://{host}:{port}/")
     if admin_token:
@@ -604,6 +735,17 @@ def run_server(
     print(f"     POST http://{host}:{port}/v1/template")
     print(f"     GET  http://{host}:{port}/v1/models        (backend status)")
     print(f"     GET  http://{host}:{port}/v1/version")
+    print(f"")
+    print(f"   Virtual Cloud Endpoints:")
+    print(f"     GET  http://{host}:{port}/v1/cloud/status")
+    print(f"     GET  http://{host}:{port}/v1/cloud/cpu")
+    print(f"     GET  http://{host}:{port}/v1/cloud/network")
+    print(f"     GET  http://{host}:{port}/v1/cloud/storage")
+    print(f"     GET  http://{host}:{port}/v1/cloud/servers")
+    print(f"     POST http://{host}:{port}/v1/cloud/servers  (spawn server)")
+    print(f"     GET  http://{host}:{port}/v1/cloud/routes")
+    print(f"     POST http://{host}:{port}/v1/cloud/routes   (add route)")
+    print(f"     POST http://{host}:{port}/v1/cloud/build    (expand infra)")
     if admin_token:
         print(f"")
         print(f"   Admin API Endpoints (token protected):")
