@@ -180,6 +180,15 @@ def _build_model_from_config(cfg: dict) -> ModelBackend:
         from ..model.dummy import EchoModelBackend  # noqa: PLC0415
         return EchoModelBackend()
 
+    if backend_name == "router":
+        from ..model.router import build_router_from_config  # noqa: PLC0415
+        router_cfg = cfg.get("model", {}).get("router", [])
+        return build_router_from_config(router_cfg)
+
+    if backend_name == "free":
+        from ..model.router import build_default_free_router  # noqa: PLC0415
+        return build_default_free_router()
+
     if backend_name == "local":
         from ..model.local import LocalModelBackend  # noqa: PLC0415
         local_cfg = cfg["model"]["local"]

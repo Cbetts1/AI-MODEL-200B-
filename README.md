@@ -1,6 +1,6 @@
 # AURA — AI Unified Reasoning Architecture
 
-### Free AI for Everyone — v0.3.0
+### Free AI for Everyone — v0.4.0
 
 > Designed and founded by **Christopher Betts**.
 > The core mission: **make AI and its services free to the public**.
@@ -33,13 +33,15 @@ from any browser, APK, or API call.  Zero burden on your phone or laptop.
 
 | Capability | Description |
 |---|---|
-| **Web Chat UI** | Beautiful responsive chat interface with dark/light themes, typing indicators, and message bubbles |
-| **Pre-fab Templates** | 10+ ready-to-use modes: Code Helper, Writing Assistant, Math Tutor, Health Advisor, Business Planner, and more |
-| **Video / Voice / Screen** | Communication buttons (WebRTC-ready) for future real-time calls |
-| **Core Engine** | Session management, memory, intent dispatching |
+| **Web Chat UI** | Beautiful responsive chat interface with SSE streaming, Markdown rendering, dark/light themes, and typing indicators |
+| **Pre-fab Templates** | 20 ready-to-use modes: Code Helper, Legal Advisor, Financial Advisor, Fitness Coach, Data Analyst, and more |
+| **Voice Input** | Speak to AURA using the browser's Web Speech API — no extra app needed |
+| **Model Router** | Automatically tries free 200B-class cloud services (Groq, Cerebras, OpenRouter, Together AI) in priority order |
+| **Core Engine** | Session management, memory, intent dispatching, multi-step agent loop |
 | **Model Interface** | Swap between local (llama.cpp, Ollama) and remote (OpenAI-compatible) backends |
-| **HTTP API** | Cloud-native JSON API — `aura serve` to run anywhere on the network |
-| **Tools** | Shell, file I/O, web search, calculator, code runner, summarizer, timer, APK builder |
+| **HTTP API** | Cloud-native JSON API — `aura serve` to run anywhere; includes SSE streaming endpoint |
+| **Tools** | 15 tools: shell, files, web search, calculator, code runner, summarizer, timer, weather, URL reader, notes, translator, image analyzer, APK builder |
+| **Agent Loop** | Multi-step ReAct-style agentic tool use — AURA can chain tools automatically |
 | **Workflows** | Multi-step automation (e.g., scaffold & build an Android app) |
 | **Integrations** | Voice, video, screen-sharing via pluggable connectors |
 | **Identity** | Warm, friendly, alive personality — configurable via YAML |
@@ -48,35 +50,73 @@ from any browser, APK, or API call.  Zero burden on your phone or laptop.
 
 ---
 
-## ✦ What's New in v0.3.0
+## ✦ What's New in v0.4.0
 
-🚀 **Web Chat Interface** — Full responsive chat UI served from the API server
-- Chat bubbles with typing animation and timestamps
-- Dark / light theme toggle
-- Video call, voice call, screen share buttons
-- Welcome screen with quick-action cards
-- PWA-installable on any device (add to home screen)
-- Keyboard shortcuts (Enter to send, Shift+Enter for newline)
+### 🚀 Model Router — Free 200B-Class AI, Anywhere
 
-📋 **Pre-fab Templates** — 10 ready-to-use specializations
-- 💻 Code Helper — Write, debug, and improve code
-- ✍️ Writing Assistant — Essays, emails, reports, stories
-- 🔢 Math Tutor — Patient step-by-step explanations
-- 🏥 Health & Wellness Advisor — General wellness guidance
-- 📊 Business Planner — Strategy and planning
-- 📚 Study Buddy — Quizzes, flashcards, explanations
-- 🎭 Creative Writer — Stories, poetry, scripts
-- 📅 Daily Planner — Tasks, goals, productivity
-- 🌍 Language Tutor — Conversation practice
-- 🔧 Tech Support — Troubleshooting and fixes
+AURA now includes a **Model Router** that automatically connects to free
+large-model cloud services.  Set any (or all) API keys and AURA tries them
+in order, falling back gracefully if one is unavailable.
 
-🛠️ **New Tools** — Real-world problem solvers
-- 🔢 Calculator — Safe math expression evaluator
-- 💻 Code Runner — Execute Python snippets
-- 📝 Summarizer — Extract key sentences from text
-- ⏱️ Timer — Set and check countdown timers
+**Free services supported (all have free tiers, no credit card required):**
 
-✨ **Alive Personality** — Warm, friendly, responsive AURA persona
+| Provider | Model | Speed | Free Tier |
+|---|---|---|---|
+| **Groq** | llama-3.3-70b-versatile | ~750 tok/s | 500K tok/day |
+| **Cerebras** | llama-3.3-70b | ~2000+ tok/s | Sign-up free |
+| **OpenRouter** | llama-3.3-70b:free + many others | Fast | Free models |
+| **Together AI** | Llama-3.3-70B-Turbo | Fast | $25 free credits |
+| **HuggingFace** | microsoft/Phi-4 | Variable | Rate-limited free |
+
+```bash
+export GROQ_API_KEY=gsk_...       # One key = immediate 70B quality
+aura serve
+```
+
+See [docs/free-200b-models.md](docs/free-200b-models.md) for full setup guide.
+
+### 🛠️ 5 New Tools (→ 15 total)
+- 🌤️ **Weather** — Real-time weather for any city (free, no API key!)
+- 🌐 **URL Reader** — Fetch and extract text from any web page
+- 📓 **Notes** — Save and recall named notes across sessions
+- 🌍 **Translator** — Translate text to any language via the model
+- 🖼️ **Image Analyzer** — Describe images from URLs (vision backends)
+
+### 📋 10 New Templates (→ 20 total)
+- ⚖️ **Legal Advisor** — Rights, contracts, and legal processes in plain English
+- 💰 **Financial Advisor** — Budgeting, investing, and personal finance
+- 💪 **Fitness Coach** — Personalised workout plans and nutrition tips
+- 👨‍🍳 **Recipe Chef** — Recipes, cooking techniques, and meal planning
+- 🎯 **Interview Coach** — Mock interviews, STAR method, salary negotiation
+- 💙 **Emotional Support** — Compassionate, non-judgmental listening
+- 🔬 **Science Tutor** — Physics, chemistry, biology — step-by-step
+- ✈️ **Travel Planner** — Itineraries, packing lists, destination guides
+- 🧠 **Philosophy** — Deep discussions on ethics, existence, and meaning
+- 📊 **Data Analyst** — Python/SQL data analysis, statistics, visualisation
+
+### ⚡ Streaming Chat (SSE)
+- New `POST /v1/chat/stream` endpoint using Server-Sent Events
+- The web UI automatically uses streaming for a more responsive feel
+- Graceful fallback to regular POST if streaming is unsupported
+
+### 🎤 Voice Input (Browser Native)
+- Click the 🎤 button to speak your message in any modern browser
+- Uses the Web Speech API — no extra app, plugin, or API key required
+- Auto-sends when speech ends; real-time transcription in the input box
+
+### 🤖 Agent Loop
+- Multi-step ReAct-style agentic tool use via `aura/core/agent_loop.py`
+- AURA can now reason → act → observe → repeat across multiple tool calls
+- Max-iteration safety guard prevents infinite loops
+
+### 🧰 Web UI Upgrades
+- Richer Markdown rendering: code blocks, headers, bold/italic, lists, blockquotes
+- Model status badge in top bar shows active backend name
+- Template search/filter in sidebar (now showing all 20 templates)
+- Streaming display with SSE fallback
+
+### 🧪 219 Tests (was 118)
+- Full test coverage for router, agent loop, new tools, new templates, streaming API
 
 ---
 
@@ -84,13 +124,13 @@ from any browser, APK, or API call.  Zero burden on your phone or laptop.
 
 ```
 aura/                   # Core Python package
-  core/                 # Engine, session, memory, dispatcher
-  model/                # Model backend abstraction (local / remote)
-  tools/                # Tools: shell, files, calculator, code runner, etc.
-  templates/            # Pre-fab template system (10+ built-in)
+  core/                 # Engine, session, memory, dispatcher, agent loop
+  model/                # Model backend abstraction (local / remote / router)
+  tools/                # 15 tools: shell, files, calculator, weather, URL reader, etc.
+  templates/            # Pre-fab template system (20 built-in)
   workflows/            # Multi-step workflow runners
   ui/
-    api.py              # HTTP API server + web UI serving
+    api.py              # HTTP API server + web UI serving + SSE streaming
     cli.py              # Rich terminal CLI
     gui/
       webui.py          # Self-contained HTML/CSS/JS chat interface
@@ -98,8 +138,11 @@ aura/                   # Core Python package
   identity/             # Persona and backstory
 
 config/
-  aura.yaml             # Runtime configuration (model, server, features)
+  aura.yaml             # Runtime configuration (model router, server, features)
   identity.yaml         # AURA's persona definition
+
+docs/
+  free-200b-models.md   # Guide to free 200B-class model providers
 
 scripts/
   install_linux.sh      # One-shot Linux setup

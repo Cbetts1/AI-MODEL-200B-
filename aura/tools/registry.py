@@ -92,6 +92,11 @@ def build_default_registry() -> ToolRegistry:
     from .code_runner import CodeRunnerTool  # noqa: PLC0415
     from .summarizer import SummarizerTool  # noqa: PLC0415
     from .timer import TimerTool  # noqa: PLC0415
+    from .weather import WeatherTool  # noqa: PLC0415
+    from .url_reader import URLReaderTool  # noqa: PLC0415
+    from .notes import NotesTool  # noqa: PLC0415
+    from .translator import TranslatorTool  # noqa: PLC0415
+    from .image_analyzer import ImageAnalyzerTool  # noqa: PLC0415
 
     registry = ToolRegistry()
     for tool in [
@@ -105,6 +110,11 @@ def build_default_registry() -> ToolRegistry:
         CodeRunnerTool(),
         SummarizerTool(),
         TimerTool(),
+        WeatherTool(),
+        URLReaderTool(),
+        NotesTool(),
+        TranslatorTool(),
+        ImageAnalyzerTool(),
     ]:
         registry.register(tool)
     return registry
