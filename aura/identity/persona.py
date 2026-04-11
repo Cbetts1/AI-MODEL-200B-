@@ -5,6 +5,7 @@ The Persona class loads config/identity.yaml and exposes:
   - name             : AURA's display name.
   - tone             : communication style (e.g. "concise", "friendly").
   - backstory        : short narrative about who AURA is.
+  - mission          : AURA's driving purpose (help millions, change lives).
 
 This keeps personality separate from code — change AURA's voice by editing
 identity.yaml, not Python.
@@ -26,12 +27,14 @@ class Persona:
         name: str = "AURA",
         tone: str = "concise, helpful, and direct",
         backstory: str = "",
+        mission: str = "",
         capabilities: Optional[list] = None,
         custom_instructions: str = "",
     ) -> None:
         self.name = name
         self.tone = tone
         self.backstory = backstory
+        self.mission = mission
         self.capabilities = capabilities or []
         self.custom_instructions = custom_instructions
 
@@ -47,6 +50,7 @@ class Persona:
             name=data.get("name", "AURA"),
             tone=data.get("tone", "concise, helpful, and direct"),
             backstory=data.get("backstory", ""),
+            mission=data.get("mission", ""),
             capabilities=data.get("capabilities", []),
             custom_instructions=data.get("custom_instructions", ""),
         )
@@ -57,6 +61,8 @@ class Persona:
             f"You are {self.name}, an AI Unified Reasoning Architecture.",
             f"Your communication style is: {self.tone}.",
         ]
+        if self.mission:
+            parts.append(f"Your mission: {self.mission}")
         if self.backstory:
             parts.append(self.backstory)
         if self.capabilities:

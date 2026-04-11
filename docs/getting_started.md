@@ -1,5 +1,8 @@
 # Getting Started with AURA
 
+> **AURA is free and open-source**, designed and founded by Christopher Betts.
+> Its mission: make AI and its services free to the public.
+
 ## Prerequisites
 
 | Requirement | Version | Notes |
@@ -172,3 +175,20 @@ aura chat --session <session-id>
 
 Session IDs are printed at the start of each chat session and stored as
 `~/.aura/memory/<session-id>.jsonl`.
+
+---
+
+## 9 — Cloud / API Deployment
+
+AURA is cloud-native — it is not constrained to a single device.
+
+```bash
+# Start the HTTP API server
+aura serve
+
+# Or with Docker
+docker compose up --build
+```
+
+See [docs/deployment.md](deployment.md) for full deployment options including
+Docker, cloud providers, and embedding AURA in a web page.

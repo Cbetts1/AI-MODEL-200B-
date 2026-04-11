@@ -36,6 +36,16 @@ memory:
 identity:
   config_path: config/identity.yaml
 
+# ── HTTP API server ────────────────────────────────────────────────────────────
+# AURA is cloud-native: run `aura serve` to start the API so it can be
+# accessed from web pages, other servers, or any device on the network.
+server:
+  host: 0.0.0.0         # "0.0.0.0" to listen on all interfaces
+  port: 8000
+  # Set to a non-empty string to require an Authorization: Bearer <token> header.
+  # Use $AURA_API_TOKEN env var in production — never commit real tokens.
+  api_token: ""
+
 # ── Features ───────────────────────────────────────────────────────────────────
 features:
   voice: false          # set true when voice integration is ready

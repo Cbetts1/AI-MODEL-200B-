@@ -1,0 +1,22 @@
+# docker-compose.yaml — One-command AURA cloud deployment.
+#
+# Usage:
+#   docker compose up --build
+#
+# AURA will be available at http://localhost:8000
+
+services:
+  aura:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      # Set a bearer token for auth (optional — leave empty for open access)
+      - AURA_API_TOKEN=${AURA_API_TOKEN:-}
+    volumes:
+      # Persist conversation memory across container restarts
+      - aura-memory:/root/.aura/memory
+    restart: unless-stopped
+
+volumes:
+  aura-memory:
