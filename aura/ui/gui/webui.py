@@ -717,7 +717,7 @@ body {
       <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
       <div class="status-dot"></div>
       <div class="top-bar-title" id="top-title">AURA — Ready to help ✨</div>
-      <span id="model-badge" style="font-size:11px;opacity:0.7;margin-left:6px;white-space:nowrap" title="Active model backend">⏳ loading…</span>
+      <span id="model-badge" style="font-size:11px;opacity:0.7;margin-left:6px;white-space:nowrap" title="Active model backend">&#8987; loading...</span>
 
       <div class="comm-buttons">
         <button class="comm-btn" id="btn-voice" onclick="toggleVoice()" title="Voice Call">🎤</button>
@@ -876,7 +876,8 @@ function renderTemplateList(filter) {
     container.appendChild(card);
   });
   if (visible.length === 0) {
-    container.innerHTML = `<div style="padding:12px;font-size:12px;opacity:0.6;text-align:center">No templates match "${q}"</div>`;
+    const escaped = q.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    container.innerHTML = `<div style="padding:12px;font-size:12px;opacity:0.6;text-align:center">No templates match "${escaped}"</div>`;
   }
 }
 

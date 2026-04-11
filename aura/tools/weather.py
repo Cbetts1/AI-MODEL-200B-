@@ -16,6 +16,11 @@ import json
 
 from .registry import Tool
 
+try:
+    from .. import __version__ as _AURA_VERSION  # noqa: PLC0415
+except Exception:  # noqa: BLE001
+    _AURA_VERSION = "0.4.0"
+
 
 class WeatherTool(Tool):
     """Fetch current weather for a city — no API key required."""
@@ -35,7 +40,7 @@ class WeatherTool(Tool):
             url = f"https://wttr.in/{encoded}?format=j1"
             req = urllib.request.Request(
                 url,
-                headers={"User-Agent": "AURA-weather-tool/0.4.0"},
+                headers={"User-Agent": f"AURA-weather-tool/{_AURA_VERSION}"},
             )
             with urllib.request.urlopen(req, timeout=8) as resp:
                 data = json.loads(resp.read().decode("utf-8"))

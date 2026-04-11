@@ -18,6 +18,11 @@ from html.parser import HTMLParser
 
 from .registry import Tool
 
+try:
+    from .. import __version__ as _AURA_VERSION  # noqa: PLC0415
+except Exception:  # noqa: BLE001
+    _AURA_VERSION = "0.4.0"
+
 # Tags whose contents we completely skip (scripts, styles, etc.)
 _SKIP_TAGS = frozenset({
     "script", "style", "noscript", "head", "meta", "link",
@@ -82,7 +87,7 @@ class URLReaderTool(Tool):
                 url,
                 headers={
                     "User-Agent": (
-                        "Mozilla/5.0 (compatible; AURA-url-reader/0.4.0)"
+                        f"Mozilla/5.0 (compatible; AURA-url-reader/{_AURA_VERSION})"
                     )
                 },
             )
