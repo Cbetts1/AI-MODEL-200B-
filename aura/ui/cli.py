@@ -6,6 +6,7 @@ Commands
   aura chat --once MSG    Send a single message and exit.
   aura serve              Start the HTTP/JSON API server (cloud-native).
   aura tools              List all available tools.
+  aura templates          List all pre-fab templates.
   aura version            Print the AURA version.
 
 The CLI reads config/aura.yaml (or the path set by --config) and builds an
@@ -35,7 +36,7 @@ from rich.text import Text
 console = Console()
 
 _DEFAULT_CONFIG = "config/aura.yaml"
-_BANNER = "[bold cyan]AURA[/] — [dim]AI Unified Reasoning Architecture[/]"
+_BANNER = "[bold cyan]AURA[/] — [dim]AI Unified Reasoning Architecture[/]  [bold]v0.3.0[/]"
 _EXIT_COMMANDS = {"exit", "quit", "/exit", "/quit", "q"}
 
 
@@ -115,7 +116,9 @@ def chat(ctx: click.Context, message: str | None, once: str | None, session: str
     console.print(Panel(_BANNER, border_style="cyan", padding=(0, 2)))
     console.print(
         f"[dim]Session ID: {engine.session.conversation_id}[/]\n"
-        "[dim]Type 'exit' or Ctrl-C to quit.  /tool list to see tools.[/]\n"
+        "[dim]Type 'exit' or Ctrl-C to quit.  "
+        "/tool list to see tools.  "
+        "/template list to see templates.[/]\n"
     )
 
     while True:
@@ -131,6 +134,10 @@ def chat(ctx: click.Context, message: str | None, once: str | None, session: str
 
         if user_input.strip() == "/tool list":
             console.print(engine.tool_registry.summary())
+            continue
+
+        if user_input.strip() == "/template list":
+            console.print(engine.template_registry.summary())
             continue
 
         if user_input.strip() == "/reset":
@@ -156,7 +163,8 @@ def serve(ctx: click.Context, host: str | None, port: int | None, token: str | N
     """Start the AURA HTTP/JSON API server.
 
     AURA is cloud-native — run it on any machine and access it from web
-    pages, other servers, or any device on the network.
+    pages, other servers, or any device on the network.  The web chat UI is
+    served at the root URL (/).
     """
     config_path = ctx.obj["config"]
     engine = _load_engine(config_path)
@@ -181,6 +189,16 @@ def list_tools(ctx: click.Context) -> None:
     """List all tools available to AURA."""
     engine = _load_engine(ctx.obj["config"])
     console.print(engine.tool_registry.summary())
+
+
+# ── templates command ──────────────────────────────────────────────────────────
+
+@main.command(name="templates")
+@click.pass_context
+def list_templates(ctx: click.Context) -> None:
+    """List all pre-fab templates available to AURA."""
+    engine = _load_engine(ctx.obj["config"])
+    console.print(engine.template_registry.summary())
 
 
 # ── version command ────────────────────────────────────────────────────────────
