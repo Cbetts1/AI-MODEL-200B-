@@ -1,0 +1,33 @@
+{
+  "_comment": "Capacitor config for AURA native Android / iOS app packaging.",
+  "_comment2": "Run 'npx cap add android' or 'npx cap add ios' to scaffold the native project.",
+  "appId": "com.aura.ai",
+  "appName": "AURA",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https",
+    "allowNavigation": []
+  },
+  "android": {
+    "allowMixedContent": false,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": false
+  },
+  "ios": {
+    "contentInset": "automatic"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 2000,
+      "backgroundColor": "#0a0e27",
+      "androidSpinnerStyle": "large",
+      "iosSpinnerStyle": "large",
+      "spinnerColor": "#5c7cfa",
+      "showSpinner": true
+    },
+    "StatusBar": {
+      "style": "Dark",
+      "backgroundColor": "#0a0e27"
+    }
+  }
+}

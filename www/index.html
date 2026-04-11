@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AURA</title>
+<style>
+body { background: #0a0e27; color: #e8eaff; font-family: sans-serif;
+       display: flex; align-items: center; justify-content: center;
+       min-height: 100vh; text-align: center; }
+</style>
+</head>
+<body>
+<div>
+  <div style="font-size:48px;margin-bottom:16px">✦</div>
+  <h1 style="font-size:24px;font-weight:700">AURA</h1>
+  <p style="color:#8b8fba;margin-top:8px">Connecting to AURA…</p>
+</div>
+<script>
+// In a Capacitor native app this page is the entry point.
+// It immediately loads the AURA server running on the device or in the cloud.
+const SERVER = localStorage.getItem("aura_server") || "http://localhost:8000";
+window.location.href = SERVER + "/";
+</script>
+</body>
+</html>

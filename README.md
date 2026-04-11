@@ -1,6 +1,6 @@
 # AURA — AI Unified Reasoning Architecture
 
-### Free AI for Everyone — v0.4.0
+### Free AI for Everyone — v0.5.0
 
 > Designed and founded by **Christopher Betts**.
 > The core mission: **make AI and its services free to the public**.
@@ -45,8 +45,81 @@ from any browser, APK, or API call.  Zero burden on your phone or laptop.
 | **Workflows** | Multi-step automation (e.g., scaffold & build an Android app) |
 | **Integrations** | Voice, video, screen-sharing via pluggable connectors |
 | **Identity** | Warm, friendly, alive personality — configurable via YAML |
-| **PWA / APK** | Installable as a Progressive Web App on any device |
+| **PWA / APK** | Installable as a Progressive Web App on any device; native Android/iOS via Capacitor |
+| **Desktop App** | Native Windows / macOS / Linux via Electron (Microsoft Store ready) |
+| **Admin API** | Secure remote-maintenance dashboard — system metrics, logs, restart, config — at `/admin` |
 | **Docker** | One-command deployment via Docker / docker-compose |
+
+---
+
+## ✦ Install AURA
+
+### Option A — Install from Browser (PWA — No App Store Required ✅)
+1. Deploy AURA to a free cloud server (see [docs/cloud-deployment.md](docs/cloud-deployment.md))
+2. Open the URL in Chrome, Edge, or Safari
+3. Click the browser's **"Install"** / **"Add to Home Screen"** prompt
+4. AURA is installed as a standalone app on Android, iOS, Windows, or macOS — **free**
+
+### Option B — Google Play Store (Android)
+Build a native APK from the Capacitor config, then submit to the Play Store.
+Full guide: [docs/app-store-guide.md](docs/app-store-guide.md)
+
+### Option C — Microsoft Store (Windows)
+Build an APPX/MSIX from the Electron config, then submit to the Microsoft Store.
+Full guide: [docs/app-store-guide.md](docs/app-store-guide.md)
+
+### Option D — Apple App Store (iOS / macOS)
+Build with Capacitor (iOS) or Electron (macOS), then submit via App Store Connect.
+Full guide: [docs/app-store-guide.md](docs/app-store-guide.md)
+
+---
+
+## ✦ What's New in v0.5.0
+
+### 🏪 Full App — Play Store, Microsoft Store, Apple Store Ready
+
+AURA v0.5.0 ships everything needed to publish on all three major stores:
+
+- **Capacitor config** (`capacitor.config.json`) — build native Android APK / iOS IPA
+  from the AURA web UI with zero code changes
+- **Electron config** (`electron/`) — build Windows APPX (Microsoft Store), macOS DMG,
+  and Linux AppImage from one codebase
+- **`www/index.html`** — native app entry point that connects to your cloud AURA server
+- **Store submission guide** ([docs/app-store-guide.md](docs/app-store-guide.md)) —
+  step-by-step for all three stores
+
+### 🔒 Admin API — Secure Remote Maintenance
+
+AURA now includes a full **Admin API** for remote management — no SSH needed:
+
+```bash
+export AURA_ADMIN_TOKEN=$(python3 -c "import secrets; print(secrets.token_hex(32))")
+aura serve
+# Open http://localhost:8000/admin in your browser
+```
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/admin` | GET | Interactive admin dashboard (HTML) |
+| `/admin/status` | GET | System metrics: uptime, memory, Python version, backend status |
+| `/admin/logs` | GET | Tail the server log buffer (last N lines) |
+| `/admin/cloud` | GET | Cloud / model-backend connection status |
+| `/admin/config` | POST | Signal a config reload |
+| `/admin/restart` | POST | Signal a graceful server restart |
+| `/admin/cloud/connect` | POST | Force-reconnect all cloud backends |
+
+All admin endpoints require `Authorization: Bearer <AURA_ADMIN_TOKEN>`.
+If the token is not set, admin endpoints are fully disabled.
+
+Full docs: [docs/admin-api.md](docs/admin-api.md)
+
+### ☁️ Cloud Deployment Guide
+
+New [docs/cloud-deployment.md](docs/cloud-deployment.md) covers free hosting on:
+Railway, Render, Fly.io, Oracle Cloud (always-free ARM), and Google Cloud Run.
+
+### 🧪 252 Tests (was 219)
+- 33 new tests covering admin module, all admin endpoints (disabled / unauthorized / authorized)
 
 ---
 
@@ -130,7 +203,8 @@ aura/                   # Core Python package
   templates/            # Pre-fab template system (20 built-in)
   workflows/            # Multi-step workflow runners
   ui/
-    api.py              # HTTP API server + web UI serving + SSE streaming
+    api.py              # HTTP API server + web UI serving + SSE streaming + admin routes
+    admin.py            # Admin API logic: metrics, logs, restart, cloud status
     cli.py              # Rich terminal CLI
     gui/
       webui.py          # Self-contained HTML/CSS/JS chat interface
@@ -138,19 +212,29 @@ aura/                   # Core Python package
   identity/             # Persona and backstory
 
 config/
-  aura.yaml             # Runtime configuration (model router, server, features)
+  aura.yaml             # Runtime configuration (model router, server, admin, features)
   identity.yaml         # AURA's persona definition
 
 docs/
   free-200b-models.md   # Guide to free 200B-class model providers
+  app-store-guide.md    # Publishing to Play Store, Microsoft Store, Apple App Store
+  admin-api.md          # Admin API reference and remote-maintenance guide
+  cloud-deployment.md   # Free-tier cloud hosting (Railway, Render, Fly.io, Oracle, GCP)
+
+electron/               # Electron desktop app (Windows APPX, macOS, Linux)
+  main.js               # Electron main process
+  package.json          # Electron build config (electron-builder, store targets)
+
+www/                    # Capacitor web assets (Android / iOS native packaging)
+  index.html            # Native app entry point — loads the AURA cloud server
+
+capacitor.config.json   # Capacitor config for Android / iOS native builds
 
 scripts/
   install_linux.sh      # One-shot Linux setup
   install_termux.sh     # One-shot Termux/Android setup
 
-tests/                  # 118 pytest unit tests
-docs/                   # Architecture, deployment, and usage docs
-
+tests/                  # 252 pytest unit tests
 Dockerfile              # Container image for cloud deployment
 docker-compose.yaml     # One-command cloud deployment
 
