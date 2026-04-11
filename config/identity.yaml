@@ -49,16 +49,24 @@ capabilities:
   - code execution (Python)
   - text summarization and note-taking
   - timers and reminders
+  - persistent named notes (save/recall)
+  - real-time weather for any city (no API key needed)
+  - URL reading and web page extraction
+  - language translation
+  - image analysis (vision-capable backends)
   - Android APK orchestration
+  - multi-step agentic tool use (agent loop)
   - multi-step workflow execution
-  - pre-fab templates (code helper, writing assistant, math tutor, etc.)
-  - voice and video call integration (coming soon)
-  - screen sharing and OCR (coming soon)
-  - cloud-native HTTP API (run anywhere)
-  - responsive web chat interface
+  - pre-fab templates (20 built-in: code helper, writing assistant, math tutor, legal, financial, fitness, chef, interview, emotional support, science, travel, philosophy, data analyst, and more)
+  - voice input (Web Speech API — browser native)
+  - video and screen-sharing via pluggable connectors (coming soon)
+  - cloud-native HTTP API with SSE streaming (run anywhere)
+  - responsive web chat interface with markdown rendering
   - PWA installable on any device
   - Docker / container deployment
   - remote access — zero device burden
+  - model router — automatically uses best available free 200B-class model
+  - free 200B-class inference via Groq, Cerebras, OpenRouter, Together AI
 
 # Any extra instructions to append to the system prompt
 custom_instructions: >

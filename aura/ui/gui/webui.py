@@ -689,6 +689,12 @@ body {
 
     <div class="sidebar-section">
       <div class="sidebar-section-title">Quick Templates</div>
+      <input
+        type="text"
+        placeholder="🔍 Search templates…"
+        oninput="filterTemplates(this.value)"
+        style="width:100%;box-sizing:border-box;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-primary);font-size:12px;margin-top:6px;outline:none"
+      >
     </div>
     <div id="template-list">
       <!-- Populated by JS -->
@@ -711,6 +717,7 @@ body {
       <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
       <div class="status-dot"></div>
       <div class="top-bar-title" id="top-title">AURA — Ready to help ✨</div>
+      <span id="model-badge" style="font-size:11px;opacity:0.7;margin-left:6px;white-space:nowrap" title="Active model backend">&#8987; loading...</span>
 
       <div class="comm-buttons">
         <button class="comm-btn" id="btn-voice" onclick="toggleVoice()" title="Voice Call">🎤</button>
@@ -813,9 +820,33 @@ let activeTemplate = null;
 
 document.addEventListener("DOMContentLoaded", () => {
   loadTemplates();
+  loadModelStatus();
   setupInput();
   registerServiceWorker();
 });
+
+// ── Model Status ────────────────────────────────────────────────────────────
+
+async function loadModelStatus() {
+  try {
+    const resp = await fetch(API_BASE + "/v1/models");
+    const data = await resp.json();
+    const backends = data.backends || [];
+    const active = backends.find(b => b.available);
+    const badge = document.getElementById("model-badge");
+    if (badge) {
+      if (active) {
+        badge.textContent = "✦ " + active.name;
+        badge.title = "Active backend: " + active.name + " (" + active.type + ")";
+        badge.style.color = "var(--accent)";
+      } else {
+        badge.textContent = "⚠ no model";
+        badge.title = "No model backend is available. Set an API key to connect.";
+        badge.style.color = "#f59f00";
+      }
+    }
+  } catch (_) {}
+}
 
 // ── Templates ──────────────────────────────────────────────────────────────
 
@@ -830,16 +861,28 @@ async function loadTemplates() {
   }
 }
 
-function renderTemplateList() {
+function renderTemplateList(filter) {
   const container = document.getElementById("template-list");
   container.innerHTML = "";
-  templates.forEach(t => {
+  const q = (filter || "").toLowerCase();
+  const visible = q
+    ? templates.filter(t => t.title.toLowerCase().includes(q) || (t.description || "").toLowerCase().includes(q))
+    : templates;
+  visible.forEach(t => {
     const card = document.createElement("div");
     card.className = "template-card" + (activeTemplate === t.name ? " active" : "");
     card.innerHTML = `<span class="template-icon">${t.icon}</span><span class="template-name">${t.title}</span>`;
     card.onclick = () => quickAction(t.name);
     container.appendChild(card);
   });
+  if (visible.length === 0) {
+    const escaped = q.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    container.innerHTML = `<div style="padding:12px;font-size:12px;opacity:0.6;text-align:center">No templates match "${escaped}"</div>`;
+  }
+}
+
+function filterTemplates(val) {
+  renderTemplateList(val);
 }
 
 async function quickAction(templateName) {
@@ -922,6 +965,15 @@ async function sendMessage() {
 
 async function sendChatMessage(text) {
   showTyping();
+  // Prefer SSE streaming for a more responsive feel; fall back to regular POST
+  if (typeof EventSource !== "undefined") {
+    await sendChatStream(text);
+  } else {
+    await sendChatPost(text);
+  }
+}
+
+async function sendChatPost(text) {
   try {
     const resp = await fetch(API_BASE + "/v1/chat", {
       method: "POST",
@@ -935,6 +987,48 @@ async function sendChatMessage(text) {
   } catch (e) {
     hideTyping();
     addMessage("aura", "⚠️ Could not reach the AURA server. Make sure it's running with `aura serve`.");
+  }
+}
+
+async function sendChatStream(text) {
+  try {
+    const resp = await fetch(API_BASE + "/v1/chat/stream", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: text, session_id: sessionId })
+    });
+    if (!resp.ok) throw new Error("stream request failed");
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let replied = false;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+      for (const line of lines) {
+        if (line.startsWith("data: ")) {
+          try {
+            const evt = JSON.parse(line.slice(6));
+            sessionId = evt.session_id || sessionId;
+            if (evt.reply) {
+              hideTyping();
+              addMessage("aura", evt.reply);
+              replied = true;
+            }
+          } catch (_) {}
+        }
+      }
+    }
+    if (!replied) {
+      hideTyping();
+      addMessage("aura", "⚠️ Empty response from server.");
+    }
+  } catch (e) {
+    // Fall back to regular POST on any stream error
+    await sendChatPost(text);
   }
 }
 
@@ -971,15 +1065,35 @@ function formatMessage(text) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
-  // Then apply safe markdown formatting (only on already-escaped text)
-  html = html
-    .replace(/```([\s\S]*?)```/g, function(_, code) {
-      return "<pre><code>" + code + "</code></pre>";
-    })
-    .replace(/`([^`]+)`/g, "<code>$1</code>")
-    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    .replace(/\*(.+?)\*/g, "<em>$1</em>")
-    .replace(/\n/g, "<br>");
+  // Fenced code blocks (``` lang ... ```) — preserve newlines inside
+  html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, function(_, lang, code) {
+    const cls = lang ? ` class="language-${lang}"` : "";
+    return `<pre style="background:var(--bg-input);border-radius:8px;padding:12px;overflow-x:auto;margin:8px 0"><code${cls}>${code.trim()}</code></pre>`;
+  });
+  // Inline code
+  html = html.replace(/`([^`\n]+)`/g, "<code style=\"background:var(--bg-input);padding:1px 5px;border-radius:4px\">$1</code>");
+  // Headers (##, ###)
+  html = html.replace(/^### (.+)$/gm, "<h3 style=\"margin:8px 0 4px\">$1</h3>");
+  html = html.replace(/^## (.+)$/gm, "<h2 style=\"margin:10px 0 4px\">$1</h2>");
+  html = html.replace(/^# (.+)$/gm, "<h1 style=\"margin:12px 0 4px\">$1</h1>");
+  // Bold and italic
+  html = html.replace(/\*\*\*(.+?)\*\*\*/g, "<strong><em>$1</em></strong>");
+  html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  html = html.replace(/\*([^*\n]+?)\*/g, "<em>$1</em>");
+  html = html.replace(/_([^_\n]+?)_/g, "<em>$1</em>");
+  // Unordered lists (lines starting with - or *)
+  html = html.replace(/^[-*] (.+)$/gm, "<li style=\"margin-left:16px\">$1</li>");
+  html = html.replace(/(<li[^>]*>.*?<\/li>\n?)+/gs, function(m) {
+    return "<ul style=\"margin:4px 0;padding-left:8px\">" + m + "</ul>";
+  });
+  // Ordered lists
+  html = html.replace(/^\d+\. (.+)$/gm, "<li style=\"margin-left:16px\">$1</li>");
+  // Horizontal rule
+  html = html.replace(/^---+$/gm, "<hr style=\"border:none;border-top:1px solid var(--border);margin:8px 0\">");
+  // Blockquotes
+  html = html.replace(/^&gt; (.+)$/gm, "<blockquote style=\"border-left:3px solid var(--accent);margin:4px 0;padding:4px 12px;opacity:0.85\">$1</blockquote>");
+  // Newlines to <br> (but not inside block elements we already wrapped)
+  html = html.replace(/\n/g, "<br>");
   return html;
 }
 
@@ -1050,11 +1164,72 @@ document.addEventListener("click", (e) => {
 
 // ── Communication Buttons ──────────────────────────────────────────────────
 
+// ── Voice Input (Web Speech API) ──────────────────────────────────────────
+
+let voiceRecognition = null;
+let isRecording = false;
+
 function toggleVoice() {
-  showCommModal("🎤", "Voice Call",
-    "Voice calling is coming soon! AURA will support real-time voice " +
-    "conversations. The model runs remotely — your device just handles " +
-    "audio streaming, keeping it lightweight and fast.");
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    showCommModal("🎤", "Voice Input",
+      "Your browser does not support the Web Speech API. " +
+      "Try Chrome or Edge for voice input support.");
+    return;
+  }
+  if (isRecording) {
+    stopVoiceRecording();
+    return;
+  }
+  startVoiceRecording(SpeechRecognition);
+}
+
+function startVoiceRecording(SpeechRecognition) {
+  voiceRecognition = new SpeechRecognition();
+  voiceRecognition.continuous = false;
+  voiceRecognition.interimResults = true;
+  voiceRecognition.lang = "en-US";
+  isRecording = true;
+  const btn = document.getElementById("btn-voice");
+  if (btn) { btn.textContent = "🔴"; btn.title = "Stop recording"; }
+  const input = document.getElementById("message-input");
+
+  voiceRecognition.onresult = (event) => {
+    let transcript = "";
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      transcript += event.results[i][0].transcript;
+    }
+    input.value = transcript;
+    input.style.height = "auto";
+    input.style.height = Math.min(input.scrollHeight, 200) + "px";
+  };
+
+  voiceRecognition.onend = () => {
+    stopVoiceRecording();
+    // Auto-send if something was captured
+    if (input.value.trim()) {
+      sendMessage();
+    }
+  };
+
+  voiceRecognition.onerror = (e) => {
+    stopVoiceRecording();
+    if (e.error !== "aborted") {
+      addMessage("aura", `⚠️ Voice input error: ${e.error}. Please try again.`);
+    }
+  };
+
+  voiceRecognition.start();
+}
+
+function stopVoiceRecording() {
+  isRecording = false;
+  const btn = document.getElementById("btn-voice");
+  if (btn) { btn.textContent = "🎤"; btn.title = "Voice input"; }
+  if (voiceRecognition) {
+    try { voiceRecognition.stop(); } catch (_) {}
+    voiceRecognition = null;
+  }
 }
 
 function toggleVideo() {

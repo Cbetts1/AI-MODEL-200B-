@@ -9,10 +9,12 @@ Endpoints
   GET  /                Serve the web chat interface.
   GET  /v1/ui           Serve the web chat interface (alias).
   POST /v1/chat         Send a message and receive a reply.
+  GET  /v1/chat/stream  SSE stream — real-time token-by-token reply.
   GET  /v1/health       Health-check / readiness probe.
   GET  /v1/tools        List available tools.
   GET  /v1/templates    List available pre-fab templates.
   POST /v1/template     Activate a pre-fab template.
+  GET  /v1/models       List model backends and their availability.
   GET  /v1/version      Return the AURA version string.
   GET  /manifest.json   PWA manifest for installable web app.
   GET  /sw.js           Service worker for offline/PWA support.
@@ -73,6 +75,29 @@ def _js_response(handler: BaseHTTPRequestHandler, status: int, js: str) -> None:
     handler.send_response(status)
     handler.send_header("Content-Type", "application/javascript; charset=utf-8")
     handler.send_header("Content-Length", str(len(payload)))
+    handler.end_headers()
+    handler.wfile.write(payload)
+
+
+def _sse_response(
+    handler: BaseHTTPRequestHandler,
+    status: int,
+    reply: str,
+    session_id: str,
+) -> None:
+    """Write a Server-Sent Events response carrying a single complete message."""
+    # Encode the reply as a JSON object inside an SSE event
+    event_data = json.dumps({"reply": reply, "session_id": session_id, "done": True})
+    # SSE format: "data: <payload>\n\n"
+    payload = f"data: {event_data}\n\n".encode("utf-8")
+    handler.send_response(status)
+    handler.send_header("Content-Type", "text/event-stream; charset=utf-8")
+    handler.send_header("Cache-Control", "no-cache")
+    handler.send_header("Connection", "keep-alive")
+    handler.send_header("Content-Length", str(len(payload)))
+    handler.send_header("Access-Control-Allow-Origin", "*")
+    handler.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+    handler.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
     handler.end_headers()
     handler.wfile.write(payload)
 
@@ -209,6 +234,20 @@ class AuraAPIHandler(BaseHTTPRequestHandler):
             _json_response(self, HTTPStatus.OK, {"templates": templates})
             return
 
+        if self.path == "/v1/models":
+            model = self.engine.model
+            # Support ModelRouter introspection
+            if hasattr(model, "backend_status"):
+                backends = model.backend_status()
+            else:
+                backends = [{
+                    "name": type(model).__name__,
+                    "available": model.is_available(),
+                    "type": type(model).__name__,
+                }]
+            _json_response(self, HTTPStatus.OK, {"backends": backends})
+            return
+
         _json_response(self, HTTPStatus.NOT_FOUND, {"error": "not found"})
 
     # ── POST routes ───────────────────────────────────────────────────────────
@@ -231,6 +270,26 @@ class AuraAPIHandler(BaseHTTPRequestHandler):
                 "reply": reply,
                 "session_id": self.engine.session.conversation_id,
             })
+            return
+
+        if self.path == "/v1/chat/stream":
+            # Server-Sent Events streaming endpoint.
+            # The engine does not natively stream at v0.4 so we emit the
+            # complete reply as a single SSE event after generation.
+            if not self._check_auth():
+                _json_response(self, HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
+                return
+            body = _read_json_body(self)
+            if body is None or "message" not in body:
+                _json_response(
+                    self,
+                    HTTPStatus.BAD_REQUEST,
+                    {"error": "request body must be JSON with a 'message' field"},
+                )
+                return
+            reply = self.engine.chat(body["message"])
+            session_id = self.engine.session.conversation_id
+            _sse_response(self, HTTPStatus.OK, reply, session_id)
             return
 
         if self.path == "/v1/template":
@@ -276,16 +335,18 @@ def run_server(
     """Start the HTTP API server (blocks until interrupted)."""
     handler_cls = make_handler_class(engine, api_token=api_token)
     server = HTTPServer((host, port), handler_cls)
-    print(f"🚀 AURA v0.3.0 — AI Unified Reasoning Architecture")
+    print(f"🚀 AURA v0.4.0 — AI Unified Reasoning Architecture")
     print(f"")
     print(f"   Web UI:  http://{host}:{port}/")
     print(f"")
     print(f"   API Endpoints:")
     print(f"     POST http://{host}:{port}/v1/chat")
+    print(f"     POST http://{host}:{port}/v1/chat/stream   (SSE streaming)")
     print(f"     GET  http://{host}:{port}/v1/health")
     print(f"     GET  http://{host}:{port}/v1/tools")
     print(f"     GET  http://{host}:{port}/v1/templates")
     print(f"     POST http://{host}:{port}/v1/template")
+    print(f"     GET  http://{host}:{port}/v1/models        (backend status)")
     print(f"     GET  http://{host}:{port}/v1/version")
     print(f"")
     print(f"   Open the Web UI in your browser to start chatting!")

@@ -9,7 +9,9 @@ model:
   # "echo"   → offline echo backend for testing (no model server required)
   # "local"  → run inference on this machine (requires llama-cpp-python or Ollama)
   # "remote" → call an OpenAI-compatible HTTP endpoint
-  backend: echo
+  # "router" → try a prioritised list of backends (best for 200B-class quality)
+  # "free"   → auto-configure all free 200B-class cloud services from env vars
+  backend: free
 
   local:
     # "llamacpp" uses llama-cpp-python; "ollama" uses the Ollama client + server.
@@ -24,7 +26,53 @@ model:
     api_key: ""          # leave blank for local servers; or use $OPENAI_API_KEY
     model_name: llama3
     temperature: 0.7
-    max_tokens: 2048
+    max_tokens: 4096
+
+  # ── Model Router — free 200B-class cloud services ────────────────────────
+  # When backend is "router", AURA tries each entry in order and uses the
+  # first one that succeeds.  Set one or more API keys as environment variables
+  # to unlock that backend (they're all free-tier or have free credits):
+  #
+  #   export GROQ_API_KEY=gsk_...         # https://console.groq.com (free)
+  #   export CEREBRAS_API_KEY=csk_...     # https://inference.cerebras.ai (free)
+  #   export OPENROUTER_API_KEY=sk-or-... # https://openrouter.ai (free models)
+  #   export TOGETHER_API_KEY=...         # https://api.together.xyz (free credits)
+  #   export HUGGINGFACE_API_KEY=hf_...   # https://huggingface.co/settings/tokens
+  #
+  # No key = that backend is skipped; if ALL are unset the echo backend is used.
+  router:
+    - name: groq
+      base_url: https://api.groq.com/openai/v1
+      api_key_env: GROQ_API_KEY
+      model_name: llama-3.3-70b-versatile
+      temperature: 0.7
+      max_tokens: 4096
+    - name: cerebras
+      base_url: https://api.cerebras.ai/v1
+      api_key_env: CEREBRAS_API_KEY
+      model_name: llama-3.3-70b
+      temperature: 0.7
+      max_tokens: 4096
+    - name: openrouter
+      base_url: https://openrouter.ai/api/v1
+      api_key_env: OPENROUTER_API_KEY
+      model_name: meta-llama/llama-3.3-70b-instruct:free
+      temperature: 0.7
+      max_tokens: 4096
+    - name: together
+      base_url: https://api.together.xyz/v1
+      api_key_env: TOGETHER_API_KEY
+      model_name: meta-llama/Llama-3.3-70B-Instruct-Turbo
+      temperature: 0.7
+      max_tokens: 4096
+    - name: huggingface
+      base_url: https://api-inference.huggingface.co/v1
+      api_key_env: HUGGINGFACE_API_KEY
+      model_name: microsoft/Phi-4
+      temperature: 0.7
+      max_tokens: 2048
+    - name: echo
+      base_url: ""     # always available — offline fallback
 
   # ── Model scaling presets ─────────────────────────────────────────────────
   # Choose a preset to automatically configure context length, max_tokens,
@@ -35,10 +83,10 @@ model:
   #   medium  — 13-34B params, 8K context, runs on 16GB RAM / laptop
   #   large   — 70B params, 16K context, runs on 32GB+ RAM / desktop GPU
   #   max     — 200B+ params, 32K+ context, cloud GPU cluster recommended
-  #             (aspirational — adjust to your actual deployment hardware)
+  #             (free via Groq/Cerebras/OpenRouter — no local hardware needed)
   #
   # The preset is informational — AURA works with any model size.
-  # Set backend to "remote" and point to your model server for best results.
+  # Set backend to "free" or "router" and add your API keys for best results.
   preset: max
 
 # ── Memory ─────────────────────────────────────────────────────────────────────
@@ -64,8 +112,10 @@ server:
 
 # ── Features ───────────────────────────────────────────────────────────────────
 features:
-  voice: false          # set true when voice integration is ready
+  voice: true           # Web Speech API voice input (browser native)
   video: false          # set true when video integration is ready
   screen_share: false   # set true when screen-share integration is ready
   web_ui: true          # serve the web chat interface at /
-  templates: true       # enable pre-fab template system
+  templates: true       # enable pre-fab template system (20 built-in)
+  streaming: true       # SSE streaming via /v1/chat/stream
+  agent_loop: true      # multi-step agentic tool use
