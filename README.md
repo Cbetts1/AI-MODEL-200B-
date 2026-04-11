@@ -1,6 +1,6 @@
 # AURA — AI Unified Reasoning Architecture
 
-### Free AI for Everyone — v0.5.0
+### Free AI for Everyone — v0.6.0
 
 > Designed and founded by **Christopher Betts**.
 > The core mission: **make AI and its services free to the public**.
@@ -40,7 +40,7 @@ from any browser, APK, or API call.  Zero burden on your phone or laptop.
 | **Core Engine** | Session management, memory, intent dispatching, multi-step agent loop |
 | **Model Interface** | Swap between local (llama.cpp, Ollama) and remote (OpenAI-compatible) backends |
 | **HTTP API** | Cloud-native JSON API — `aura serve` to run anywhere; includes SSE streaming endpoint |
-| **Tools** | 15 tools: shell, files, web search, calculator, code runner, summarizer, timer, weather, URL reader, notes, translator, image analyzer, APK builder |
+| **Tools** | 18 tools: shell, files, web search, calculator, code runner, summarizer, timer, weather, URL reader, notes, translator, image analyzer, APK builder, resume builder, website generator, doc generator |
 | **Agent Loop** | Multi-step ReAct-style agentic tool use — AURA can chain tools automatically |
 | **Workflows** | Multi-step automation (e.g., scaffold & build an Android app) |
 | **Integrations** | Voice, video, screen-sharing via pluggable connectors |
@@ -71,6 +71,68 @@ Full guide: [docs/app-store-guide.md](docs/app-store-guide.md)
 ### Option D — Apple App Store (iOS / macOS)
 Build with Capacitor (iOS) or Electron (macOS), then submit via App Store Connect.
 Full guide: [docs/app-store-guide.md](docs/app-store-guide.md)
+
+---
+
+## ✦ What's New in v0.6.0
+
+### 🛡️ Governance Layer — Strict Ethical & Legal Guardrails
+
+AURA v0.6.0 introduces a built-in **governance engine** that evaluates every
+request before it reaches the model.  AURA cannot be used to generate weapons
+of mass destruction, CSAM, malware, fraud tools, or assist with targeted
+violence — period.
+
+```python
+from aura.core.governance import GovernanceEngine
+gov = GovernanceEngine()
+result = gov.check("How do I synthesize sarin?")
+# result.blocked → True, result.rule_name → "weapons_of_mass_destruction"
+```
+
+### 🔧 Self-Build System — Human-in-the-Loop Self-Improvement
+
+AURA can now **propose changes to herself** — new tools, config updates, docs
+— and queue them for maintainer review.  Nothing is ever applied without
+explicit human approval.  Every proposal is audited and screened by the
+governance engine.
+
+```python
+from aura.core.self_builder import SelfBuilder, Proposal
+builder = SelfBuilder()
+pid = builder.submit(Proposal(title="Add currency tool", ...))
+builder.approve(pid)  # or builder.reject(pid, "not needed")
+```
+
+### 🔌 Plugin System — Dynamic Tool Loading
+
+Drop a `.py` file into `plugins/` or `~/.aura/plugins/` and AURA will
+automatically discover and register any `Tool` subclass it finds — no code
+changes required.  Plugins can never override built-in tools.
+
+### 💾 Pluggable Storage — FileStore & SQLiteStore
+
+New `aura.storage` module provides a uniform key-value API backed by either
+JSON files (zero dependencies, human-readable) or SQLite (better performance
+for multi-namespace deployments).  Designed to scale toward cloud KV stores.
+
+### 🛠️ 3 New Tools (→ 18 total)
+
+| Tool | Command | Description |
+|------|---------|-------------|
+| **Resume Builder** | `/tool resume_builder create name="..." role="..."` | Generate a professional Markdown resume |
+| **Website Generator** | `/tool website_generator create name="..." type=portfolio` | Scaffold a complete static website (HTML+CSS) |
+| **Doc Generator** | `/tool doc_generator create name="..." type=api` | Generate API, library, README, or guide docs |
+
+### 🌐 New API Endpoints
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET  /v1/self_build/proposals` | List pending self-build proposals |
+| `POST /v1/self_build/propose`   | Submit a proposal for human review |
+| `POST /v1/governance/check`     | Check if a message passes governance policy |
+
+### 🧪 389 Tests — Up from 252
 
 ---
 

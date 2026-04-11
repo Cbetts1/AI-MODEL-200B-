@@ -97,6 +97,9 @@ def build_default_registry() -> ToolRegistry:
     from .notes import NotesTool  # noqa: PLC0415
     from .translator import TranslatorTool  # noqa: PLC0415
     from .image_analyzer import ImageAnalyzerTool  # noqa: PLC0415
+    from .resume_builder import ResumeTool  # noqa: PLC0415
+    from .website_generator import WebsiteGeneratorTool  # noqa: PLC0415
+    from .doc_generator import DocGeneratorTool  # noqa: PLC0415
 
     registry = ToolRegistry()
     for tool in [
@@ -115,6 +118,9 @@ def build_default_registry() -> ToolRegistry:
         NotesTool(),
         TranslatorTool(),
         ImageAnalyzerTool(),
+        ResumeTool(),
+        WebsiteGeneratorTool(),
+        DocGeneratorTool(),
     ]:
         registry.register(tool)
     return registry

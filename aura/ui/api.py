@@ -6,18 +6,21 @@ constrained to a single device — it travels where it is needed.
 
 Public Endpoints
 ----------------
-  GET  /                Serve the web chat interface.
-  GET  /v1/ui           Serve the web chat interface (alias).
-  POST /v1/chat         Send a message and receive a reply.
-  GET  /v1/chat/stream  SSE stream — real-time token-by-token reply.
-  GET  /v1/health       Health-check / readiness probe.
-  GET  /v1/tools        List available tools.
-  GET  /v1/templates    List available pre-fab templates.
-  POST /v1/template     Activate a pre-fab template.
-  GET  /v1/models       List model backends and their availability.
-  GET  /v1/version      Return the AURA version string.
-  GET  /manifest.json   PWA manifest for installable web app.
-  GET  /sw.js           Service worker for offline/PWA support.
+  GET  /                         Serve the web chat interface.
+  GET  /v1/ui                    Serve the web chat interface (alias).
+  POST /v1/chat                  Send a message and receive a reply.
+  GET  /v1/chat/stream           SSE stream — real-time token-by-token reply.
+  GET  /v1/health                Health-check / readiness probe.
+  GET  /v1/tools                 List available tools (18 in v0.6.0).
+  GET  /v1/templates             List available pre-fab templates.
+  POST /v1/template              Activate a pre-fab template.
+  GET  /v1/models                List model backends and their availability.
+  GET  /v1/version               Return the AURA version string.
+  GET  /manifest.json            PWA manifest for installable web app.
+  GET  /sw.js                    Service worker for offline/PWA support.
+  GET  /v1/self_build/proposals  List pending self-build proposals.
+  POST /v1/self_build/propose    Submit a self-build proposal for human review.
+  POST /v1/governance/check      Check whether a message is allowed by policy.
 
 Admin Endpoints (require ``Authorization: Bearer <AURA_ADMIN_TOKEN>``)
 ----------------------------------------------------------------------
@@ -351,6 +354,16 @@ class AuraAPIHandler(BaseHTTPRequestHandler):
             _json_response(self, HTTPStatus.OK, {"cloud_backends": backends})
             return
 
+        if self.path == "/v1/self_build/proposals":
+            from ..core.self_builder import SelfBuilder  # noqa: PLC0415
+            builder = SelfBuilder()
+            proposals = [p.to_dict() for p in builder.list_pending()]
+            _json_response(self, HTTPStatus.OK, {
+                "pending": proposals,
+                "summary": builder.summary(),
+            })
+            return
+
         _json_response(self, HTTPStatus.NOT_FOUND, {"error": "not found"})
 
     # ── POST routes ───────────────────────────────────────────────────────────
@@ -410,6 +423,77 @@ class AuraAPIHandler(BaseHTTPRequestHandler):
                 "greeting": greeting,
                 "template": body["template"],
                 "session_id": self.engine.session.conversation_id,
+            })
+            return
+
+        if self.path == "/v1/self_build/propose":
+            if not self._check_auth():
+                _json_response(self, HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
+                return
+            body = _read_json_body(self)
+            if body is None:
+                _json_response(
+                    self, HTTPStatus.BAD_REQUEST,
+                    {"error": "request body must be JSON"},
+                )
+                return
+            required = ("title", "description", "target_path", "action")
+            missing = [f for f in required if f not in body]
+            if missing:
+                _json_response(
+                    self, HTTPStatus.BAD_REQUEST,
+                    {"error": f"missing fields: {', '.join(missing)}"},
+                )
+                return
+            from ..core.self_builder import SelfBuilder, Proposal  # noqa: PLC0415
+            try:
+                proposal = Proposal(
+                    title=body["title"],
+                    description=body["description"],
+                    target_path=body["target_path"],
+                    action=body["action"],
+                    content=body.get("content", ""),
+                )
+                builder = SelfBuilder()
+                proposal_id = builder.submit(proposal)
+                _json_response(self, HTTPStatus.OK, {
+                    "proposal_id": proposal_id,
+                    "status": "pending_review",
+                    "message": (
+                        "Proposal submitted for human review.  "
+                        "A maintainer must approve before any change is applied."
+                    ),
+                })
+            except ValueError as exc:
+                _json_response(
+                    self, HTTPStatus.FORBIDDEN,
+                    {"error": str(exc), "blocked_by": "governance"},
+                )
+            return
+
+        if self.path == "/v1/governance/check":
+            if not self._check_auth():
+                _json_response(self, HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
+                return
+            body = _read_json_body(self)
+            if body is None or "message" not in body:
+                _json_response(
+                    self,
+                    HTTPStatus.BAD_REQUEST,
+                    {"error": "request body must be JSON with a 'message' field"},
+                )
+                return
+            from ..core.governance import GovernanceEngine  # noqa: PLC0415
+            gov = GovernanceEngine()
+            result = gov.check(body["message"])
+            _json_response(self, HTTPStatus.OK, {
+                "blocked": result.blocked,
+                "caution": result.caution,
+                "rule_name": result.rule_name,
+                "reason": result.reason,
+                "suggestion": result.suggestion,
+                "caution_note": result.caution_note,
+                "matched_rules": result.matched_rules,
             })
             return
 
@@ -505,7 +589,7 @@ def run_server(
     """Start the HTTP API server (blocks until interrupted)."""
     handler_cls = make_handler_class(engine, api_token=api_token, admin_token=admin_token)
     server = HTTPServer((host, port), handler_cls)
-    print(f"🚀 AURA v0.5.0 — AI Unified Reasoning Architecture")
+    print(f"🚀 AURA v0.6.0 — AI Unified Reasoning Architecture")
     print(f"")
     print(f"   Web UI:  http://{host}:{port}/")
     if admin_token:
