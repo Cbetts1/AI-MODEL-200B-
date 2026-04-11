@@ -431,7 +431,7 @@ class DocGeneratorTool(Tool):
         version = kv.get("version", "1.0.0")
         install = kv.get("install", f"pip install {name.lower()}")
         usage = kv.get("usage", f"python -m {name.lower()}")
-        today = date.today().isoformat()
+        today_str = date.today().isoformat()
         module_name = re.sub(r"[^\w]", "_", name.lower())
 
         template_map = {
@@ -450,7 +450,7 @@ class DocGeneratorTool(Tool):
             version=version,
             install=install,
             usage=usage,
-            today=today,
+            today=today_str,
             module_name=module_name,
         )
 
