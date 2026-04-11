@@ -964,12 +964,18 @@ function addMessage(role, text) {
 
 function formatMessage(text) {
   if (!text) return "";
-  // Basic markdown-ish formatting
+  // Escape HTML entities first for security
   let html = text
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
-    .replace(/```([\s\S]*?)```/g, "<pre><code>$1</code></pre>")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+  // Then apply safe markdown formatting (only on already-escaped text)
+  html = html
+    .replace(/```([\s\S]*?)```/g, function(_, code) {
+      return "<pre><code>" + code + "</code></pre>";
+    })
     .replace(/`([^`]+)`/g, "<code>$1</code>")
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
     .replace(/\*(.+?)\*/g, "<em>$1</em>")

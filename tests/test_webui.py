@@ -2,11 +2,9 @@
 
 import json
 import threading
-import unittest
 from http import HTTPStatus
 from http.server import HTTPServer
 from io import BytesIO
-from unittest.mock import MagicMock
 
 from aura.core.engine import AuraEngine
 from aura.model.dummy import EchoModelBackend

@@ -35,6 +35,7 @@ model:
   #   medium  — 13-34B params, 8K context, runs on 16GB RAM / laptop
   #   large   — 70B params, 16K context, runs on 32GB+ RAM / desktop GPU
   #   max     — 200B+ params, 32K+ context, cloud GPU cluster recommended
+  #             (aspirational — adjust to your actual deployment hardware)
   #
   # The preset is informational — AURA works with any model size.
   # Set backend to "remote" and point to your model server for best results.

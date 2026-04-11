@@ -29,7 +29,11 @@ class CodeRunnerTool(Tool):
     """Run Python code snippets and return output."""
 
     name = "code_runner"
-    description = "Run Python code. Usage: /tool code_runner <code>"
+    description = (
+        "Run Python code in a sandboxed subprocess. "
+        "⚠️ Runs with AURA process permissions — use container sandboxing in production. "
+        "Usage: /tool code_runner <code>"
+    )
 
     def run(self, args: str) -> str:
         code = args.strip()
