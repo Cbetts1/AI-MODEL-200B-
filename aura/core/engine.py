@@ -63,12 +63,14 @@ class AuraEngine:
     @classmethod
     def from_config(cls, config_path: str = "config/aura.yaml") -> "AuraEngine":
         """Build an AuraEngine from a YAML config file."""
+        from ..tools.registry import build_default_registry  # noqa: PLC0415
         cfg = yaml.safe_load(Path(config_path).read_text(encoding="utf-8"))
         persona = Persona.from_config("config/identity.yaml")
         model = _build_model_from_config(cfg)
         return cls(
             model=model,
             persona=persona,
+            tool_registry=build_default_registry(),
             memory_dir=cfg.get("memory", {}).get("dir"),
         )
 
@@ -128,6 +130,10 @@ class AuraEngine:
 def _build_model_from_config(cfg: dict) -> ModelBackend:
     """Instantiate the correct backend based on config."""
     backend_name = cfg.get("model", {}).get("backend", "remote")
+
+    if backend_name == "echo":
+        from ..model.dummy import EchoModelBackend  # noqa: PLC0415
+        return EchoModelBackend()
 
     if backend_name == "local":
         from ..model.local import LocalModelBackend  # noqa: PLC0415

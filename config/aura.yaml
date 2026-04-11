@@ -6,9 +6,10 @@
 
 # ── Model backend ──────────────────────────────────────────────────────────────
 model:
+  # "echo"   → offline echo backend for testing (no model server required)
   # "local"  → run inference on this machine (requires llama-cpp-python or Ollama)
   # "remote" → call an OpenAI-compatible HTTP endpoint
-  backend: remote
+  backend: echo
 
   local:
     # "llamacpp" uses llama-cpp-python; "ollama" uses the Ollama client + server.
