@@ -110,6 +110,24 @@ server:
   # Use $AURA_API_TOKEN env var in production — never commit real tokens.
   api_token: ""
 
+# ── Admin API ──────────────────────────────────────────────────────────────────
+# Set AURA_ADMIN_TOKEN to a strong random string to enable the admin dashboard
+# and remote-maintenance API at /admin.
+#
+# The admin API provides:
+#   - System metrics (uptime, memory, Python version)
+#   - Model / cloud-backend status and reconnect
+#   - Server log tail
+#   - Runtime config reload
+#   - Graceful restart signalling
+#
+# NEVER commit a real token to version control.  Use the environment variable:
+#   export AURA_ADMIN_TOKEN=$(python3 -c "import secrets; print(secrets.token_hex(32))")
+admin:
+  # Leave empty to disable admin endpoints entirely.
+  # In production always use the env var: $AURA_ADMIN_TOKEN
+  admin_token: ""
+
 # ── Features ───────────────────────────────────────────────────────────────────
 features:
   voice: true           # Web Speech API voice input (browser native)

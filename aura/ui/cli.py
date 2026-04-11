@@ -176,9 +176,15 @@ def serve(ctx: click.Context, host: str | None, port: int | None, token: str | N
     final_port = port or server_cfg.get("port", 8000)
     # CLI flag > env var > config file
     final_token = token or os.environ.get("AURA_API_TOKEN") or server_cfg.get("api_token", "")
+    # Admin token: env var > config file admin section
+    admin_cfg = cfg.get("admin", {})
+    final_admin_token = (
+        os.environ.get("AURA_ADMIN_TOKEN")
+        or admin_cfg.get("admin_token", "")
+    )
 
     from .api import run_server  # noqa: PLC0415
-    run_server(engine, host=final_host, port=final_port, api_token=final_token)
+    run_server(engine, host=final_host, port=final_port, api_token=final_token, admin_token=final_admin_token)
 
 
 # ── tools command ──────────────────────────────────────────────────────────────

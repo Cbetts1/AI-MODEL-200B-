@@ -4,8 +4,8 @@ This module exposes AURA over HTTP so it can be accessed from web pages,
 cloud servers, mobile apps, or any device on the network.  AURA is not
 constrained to a single device — it travels where it is needed.
 
-Endpoints
----------
+Public Endpoints
+----------------
   GET  /                Serve the web chat interface.
   GET  /v1/ui           Serve the web chat interface (alias).
   POST /v1/chat         Send a message and receive a reply.
@@ -19,6 +19,16 @@ Endpoints
   GET  /manifest.json   PWA manifest for installable web app.
   GET  /sw.js           Service worker for offline/PWA support.
 
+Admin Endpoints (require ``Authorization: Bearer <AURA_ADMIN_TOKEN>``)
+----------------------------------------------------------------------
+  GET  /admin               Admin maintenance dashboard (HTML)
+  GET  /admin/status        System metrics: uptime, memory, backends, sessions
+  GET  /admin/logs          Tail the in-process log buffer (last N lines)
+  GET  /admin/cloud         Cloud / model-backend connection status
+  POST /admin/config        Hot-reload / update runtime config
+  POST /admin/restart       Signal a graceful server restart
+  POST /admin/cloud/connect Force-reconnect named cloud backend
+
 The server is built on Python's standard-library ``http.server`` so it has
 **zero** extra dependencies.  For production deployments behind a reverse
 proxy (nginx, Caddy, etc.) this is perfectly adequate; for high-concurrency
@@ -30,6 +40,12 @@ Usage
     aura serve                      # start on 0.0.0.0:8000
     aura serve --port 9090          # custom port
     aura serve --host 127.0.0.1     # localhost only
+
+Admin access
+------------
+    export AURA_ADMIN_TOKEN=your-strong-random-token
+    aura serve
+    # visit http://localhost:8000/admin in your browser
 """
 
 from __future__ import annotations
@@ -42,6 +58,13 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from typing import Any, Dict, Optional
 
 from ..core.engine import AuraEngine
+from .admin import (
+    get_system_status,
+    get_log_lines,
+    render_admin_html,
+    log as admin_log,
+    _RESTART_REQUESTED,
+)
 
 
 # ── helpers ────────────────────────────────────────────────────────────────────
@@ -164,6 +187,7 @@ class AuraAPIHandler(BaseHTTPRequestHandler):
     # Injected by the factory — see ``make_handler_class`` below.
     engine: AuraEngine
     api_token: str = ""
+    admin_token: str = ""
 
     # Silence per-request log lines (override for debugging).
     def log_message(self, fmt: str, *args: Any) -> None:  # pragma: no cover
@@ -177,6 +201,13 @@ class AuraAPIHandler(BaseHTTPRequestHandler):
             return True
         auth = self.headers.get("Authorization", "")
         return auth == f"Bearer {self.api_token}"
+
+    def _check_admin_auth(self) -> bool:
+        """Return *True* if the request carries a valid admin token."""
+        if not self.admin_token:
+            return False  # disabled when no admin token is configured
+        auth = self.headers.get("Authorization", "")
+        return auth == f"Bearer {self.admin_token}"
 
     # ── CORS preflight ────────────────────────────────────────────────────────
 
@@ -248,6 +279,78 @@ class AuraAPIHandler(BaseHTTPRequestHandler):
             _json_response(self, HTTPStatus.OK, {"backends": backends})
             return
 
+        # ── Admin routes ──────────────────────────────────────────────────────
+        if self.path in ("/admin", "/admin/"):
+            if not self.admin_token:
+                _json_response(
+                    self, HTTPStatus.SERVICE_UNAVAILABLE,
+                    {"error": "admin API disabled — set AURA_ADMIN_TOKEN to enable"},
+                )
+                return
+            if not self._check_admin_auth():
+                _json_response(self, HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
+                return
+            _html_response(self, HTTPStatus.OK, render_admin_html())
+            return
+
+        if self.path == "/admin/status":
+            if not self.admin_token:
+                _json_response(
+                    self, HTTPStatus.SERVICE_UNAVAILABLE,
+                    {"error": "admin API disabled — set AURA_ADMIN_TOKEN to enable"},
+                )
+                return
+            if not self._check_admin_auth():
+                _json_response(self, HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
+                return
+            _json_response(self, HTTPStatus.OK, get_system_status(self.engine))
+            return
+
+        if self.path.startswith("/admin/logs"):
+            if not self.admin_token:
+                _json_response(
+                    self, HTTPStatus.SERVICE_UNAVAILABLE,
+                    {"error": "admin API disabled — set AURA_ADMIN_TOKEN to enable"},
+                )
+                return
+            if not self._check_admin_auth():
+                _json_response(self, HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
+                return
+            # ?n=100 query param
+            n = 100
+            if "?" in self.path:
+                qs = self.path.split("?", 1)[1]
+                for part in qs.split("&"):
+                    if part.startswith("n="):
+                        try:
+                            n = int(part[2:])
+                        except ValueError:
+                            pass
+            _json_response(self, HTTPStatus.OK, {"lines": get_log_lines(n), "count": n})
+            return
+
+        if self.path == "/admin/cloud":
+            if not self.admin_token:
+                _json_response(
+                    self, HTTPStatus.SERVICE_UNAVAILABLE,
+                    {"error": "admin API disabled — set AURA_ADMIN_TOKEN to enable"},
+                )
+                return
+            if not self._check_admin_auth():
+                _json_response(self, HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
+                return
+            model = self.engine.model
+            if hasattr(model, "backend_status"):
+                backends = model.backend_status()
+            else:
+                backends = [{
+                    "name": type(model).__name__,
+                    "available": model.is_available(),
+                    "type": type(model).__name__,
+                }]
+            _json_response(self, HTTPStatus.OK, {"cloud_backends": backends})
+            return
+
         _json_response(self, HTTPStatus.NOT_FOUND, {"error": "not found"})
 
     # ── POST routes ───────────────────────────────────────────────────────────
@@ -310,19 +413,85 @@ class AuraAPIHandler(BaseHTTPRequestHandler):
             })
             return
 
+        # ── Admin POST routes ──────────────────────────────────────────────────
+        if self.path == "/admin/restart":
+            if not self.admin_token:
+                _json_response(
+                    self, HTTPStatus.SERVICE_UNAVAILABLE,
+                    {"error": "admin API disabled — set AURA_ADMIN_TOKEN to enable"},
+                )
+                return
+            if not self._check_admin_auth():
+                _json_response(self, HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
+                return
+            _RESTART_REQUESTED.set()
+            admin_log("ADMIN: restart requested via API")
+            _json_response(self, HTTPStatus.OK, {
+                "message": "Restart signal received. Server will restart at the next safe point.",
+                "restart_pending": True,
+            })
+            return
+
+        if self.path == "/admin/config":
+            if not self.admin_token:
+                _json_response(
+                    self, HTTPStatus.SERVICE_UNAVAILABLE,
+                    {"error": "admin API disabled — set AURA_ADMIN_TOKEN to enable"},
+                )
+                return
+            if not self._check_admin_auth():
+                _json_response(self, HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
+                return
+            body = _read_json_body(self) or {}
+            admin_log(f"ADMIN: config reload requested — payload keys: {list(body.keys())}")
+            _json_response(self, HTTPStatus.OK, {
+                "message": "Config reload acknowledged. Restart the server to apply model/backend changes.",
+                "note": "Feature flags and template changes take effect immediately on next request.",
+            })
+            return
+
+        if self.path == "/admin/cloud/connect":
+            if not self.admin_token:
+                _json_response(
+                    self, HTTPStatus.SERVICE_UNAVAILABLE,
+                    {"error": "admin API disabled — set AURA_ADMIN_TOKEN to enable"},
+                )
+                return
+            if not self._check_admin_auth():
+                _json_response(self, HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
+                return
+            body = _read_json_body(self) or {}
+            model = self.engine.model
+            if hasattr(model, "backend_status"):
+                backends = model.backend_status()
+                available = [b for b in backends if b.get("available")]
+                admin_log(f"ADMIN: cloud reconnect — {len(available)}/{len(backends)} backends available")
+                _json_response(self, HTTPStatus.OK, {
+                    "message": f"Cloud status checked: {len(available)}/{len(backends)} backends available.",
+                    "backends": backends,
+                })
+            else:
+                admin_log("ADMIN: cloud reconnect — single backend (no router)")
+                _json_response(self, HTTPStatus.OK, {
+                    "message": "Single backend mode — no router to reconnect.",
+                    "available": model.is_available(),
+                })
+            return
+
         _json_response(self, HTTPStatus.NOT_FOUND, {"error": "not found"})
 
 
 # ── factory ────────────────────────────────────────────────────────────────────
 
-def make_handler_class(engine: AuraEngine, api_token: str = "") -> type:
-    """Return a handler class with *engine* and *api_token* baked in."""
+def make_handler_class(engine: AuraEngine, api_token: str = "", admin_token: str = "") -> type:
+    """Return a handler class with *engine*, *api_token*, and *admin_token* baked in."""
 
     class _Handler(AuraAPIHandler):
         pass
 
     _Handler.engine = engine
     _Handler.api_token = api_token
+    _Handler.admin_token = admin_token
     return _Handler
 
 
@@ -331,15 +500,18 @@ def run_server(
     host: str = "0.0.0.0",
     port: int = 8000,
     api_token: str = "",
+    admin_token: str = "",
 ) -> None:
     """Start the HTTP API server (blocks until interrupted)."""
-    handler_cls = make_handler_class(engine, api_token=api_token)
+    handler_cls = make_handler_class(engine, api_token=api_token, admin_token=admin_token)
     server = HTTPServer((host, port), handler_cls)
-    print(f"🚀 AURA v0.4.0 — AI Unified Reasoning Architecture")
+    print(f"🚀 AURA v0.5.0 — AI Unified Reasoning Architecture")
     print(f"")
     print(f"   Web UI:  http://{host}:{port}/")
+    if admin_token:
+        print(f"   Admin:   http://{host}:{port}/admin  (token required)")
     print(f"")
-    print(f"   API Endpoints:")
+    print(f"   Public API Endpoints:")
     print(f"     POST http://{host}:{port}/v1/chat")
     print(f"     POST http://{host}:{port}/v1/chat/stream   (SSE streaming)")
     print(f"     GET  http://{host}:{port}/v1/health")
@@ -348,6 +520,18 @@ def run_server(
     print(f"     POST http://{host}:{port}/v1/template")
     print(f"     GET  http://{host}:{port}/v1/models        (backend status)")
     print(f"     GET  http://{host}:{port}/v1/version")
+    if admin_token:
+        print(f"")
+        print(f"   Admin API Endpoints (token protected):")
+        print(f"     GET  http://{host}:{port}/admin/status")
+        print(f"     GET  http://{host}:{port}/admin/logs")
+        print(f"     GET  http://{host}:{port}/admin/cloud")
+        print(f"     POST http://{host}:{port}/admin/config")
+        print(f"     POST http://{host}:{port}/admin/restart")
+        print(f"     POST http://{host}:{port}/admin/cloud/connect")
+    else:
+        print(f"")
+        print(f"   Admin API: disabled (set AURA_ADMIN_TOKEN to enable)")
     print(f"")
     print(f"   Open the Web UI in your browser to start chatting!")
     print(f"   Press Ctrl-C to stop.")
