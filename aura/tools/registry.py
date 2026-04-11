@@ -88,6 +88,10 @@ def build_default_registry() -> ToolRegistry:
     from .file_ops import FileReadTool, FileWriteTool, FileListTool  # noqa: PLC0415
     from .web_search import WebSearchTool  # noqa: PLC0415
     from .apk_builder import ApkBuilderTool  # noqa: PLC0415
+    from .calculator import CalculatorTool  # noqa: PLC0415
+    from .code_runner import CodeRunnerTool  # noqa: PLC0415
+    from .summarizer import SummarizerTool  # noqa: PLC0415
+    from .timer import TimerTool  # noqa: PLC0415
 
     registry = ToolRegistry()
     for tool in [
@@ -97,6 +101,10 @@ def build_default_registry() -> ToolRegistry:
         FileListTool(),
         WebSearchTool(),
         ApkBuilderTool(),
+        CalculatorTool(),
+        CodeRunnerTool(),
+        SummarizerTool(),
+        TimerTool(),
     ]:
         registry.register(tool)
     return registry

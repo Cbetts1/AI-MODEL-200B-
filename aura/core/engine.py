@@ -8,6 +8,7 @@ AuraEngine ties together:
   - Dispatcher: routes messages to chat / tool / workflow
   - Tools     : callable tools registry
   - Workflows : multi-step orchestration
+  - Templates : pre-fab persona overlays
 
 Usage example
 -------------
@@ -30,6 +31,7 @@ from .dispatcher import Dispatcher
 from ..model.base import ModelBackend
 from ..tools.registry import ToolRegistry
 from ..identity.persona import Persona
+from ..templates.registry import TemplateRegistry, build_default_template_registry
 
 
 class AuraEngine:
@@ -40,15 +42,18 @@ class AuraEngine:
         model: ModelBackend,
         persona: Persona,
         tool_registry: Optional[ToolRegistry] = None,
+        template_registry: Optional[TemplateRegistry] = None,
         memory_dir: Optional[str] = None,
         resume_session_id: Optional[str] = None,
     ) -> None:
         self.model = model
         self.persona = persona
         self.tool_registry = tool_registry or ToolRegistry()
+        self.template_registry = template_registry or build_default_template_registry()
         self.memory = AuraMemory(memory_dir)
         self.session = Session()
         self.dispatcher = Dispatcher(tool_registry=self.tool_registry)
+        self.active_template: Optional[str] = None
 
         # Seed the session with AURA's system prompt
         self.session.add_message("system", persona.system_prompt())
@@ -71,6 +76,7 @@ class AuraEngine:
             model=model,
             persona=persona,
             tool_registry=build_default_registry(),
+            template_registry=build_default_template_registry(),
             memory_dir=cfg.get("memory", {}).get("dir"),
         )
 
@@ -79,8 +85,16 @@ class AuraEngine:
     def chat(self, user_message: str) -> str:
         """Send a message, dispatch it, and return AURA's reply.
 
-        Handles tool calls, workflow triggers, and plain chat turns.
+        Handles tool calls, workflow triggers, template commands, and plain chat turns.
         """
+        # Handle template commands before dispatch
+        template_reply = self._handle_template_command(user_message)
+        if template_reply is not None:
+            self.session.add_message("user", user_message)
+            self.session.add_message("assistant", template_reply)
+            self.memory.save(self.session)
+            return template_reply
+
         self.session.add_message("user", user_message)
         result = self.dispatcher.dispatch(user_message)
 
@@ -98,9 +112,40 @@ class AuraEngine:
     def reset(self) -> None:
         """Clear history and start a fresh conversation."""
         self.session.clear()
+        self.active_template = None
         self.session.add_message("system", self.persona.system_prompt())
 
+    def apply_template(self, template_name: str) -> str:
+        """Activate a pre-fab template and return its greeting."""
+        template = self.template_registry.get(template_name)
+        if template is None:
+            return f"[AURA] Unknown template: '{template_name}'. Try /template list."
+        self.active_template = template_name
+        # Add template overlay as a system message
+        self.session.add_message("system", template.system_prompt_overlay)
+        return template.greeting
+
     # ── private helpers ────────────────────────────────────────────────────────
+
+    def _handle_template_command(self, message: str) -> Optional[str]:
+        """Check if message is a /template command and handle it."""
+        stripped = message.strip()
+        if not stripped.startswith("/template"):
+            return None
+
+        parts = stripped.split(None, 2)
+        if len(parts) < 2:
+            return self.template_registry.summary()
+
+        subcmd = parts[1].lower()
+        if subcmd == "list":
+            return self.template_registry.summary()
+        if subcmd == "reset":
+            self.active_template = None
+            return "🔄 Template reset! I'm back to my default AURA persona."
+        if subcmd == "use" and len(parts) >= 3:
+            return self.apply_template(parts[2].strip())
+        return self.template_registry.summary()
 
     def _run_tool(self, name: str, args: str) -> str:
         tool = self.tool_registry.get(name)

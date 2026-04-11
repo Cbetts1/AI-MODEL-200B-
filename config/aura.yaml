@@ -26,6 +26,21 @@ model:
     temperature: 0.7
     max_tokens: 2048
 
+  # ── Model scaling presets ─────────────────────────────────────────────────
+  # Choose a preset to automatically configure context length, max_tokens,
+  # and recommended hardware.  Override individual settings above as needed.
+  #
+  # Presets:
+  #   small   — 7B params, 4K context, runs on 8GB RAM / mobile
+  #   medium  — 13-34B params, 8K context, runs on 16GB RAM / laptop
+  #   large   — 70B params, 16K context, runs on 32GB+ RAM / desktop GPU
+  #   max     — 200B+ params, 32K+ context, cloud GPU cluster recommended
+  #             (aspirational — adjust to your actual deployment hardware)
+  #
+  # The preset is informational — AURA works with any model size.
+  # Set backend to "remote" and point to your model server for best results.
+  preset: max
+
 # ── Memory ─────────────────────────────────────────────────────────────────────
 memory:
   # Directory where session history files are stored.
@@ -39,6 +54,7 @@ identity:
 # ── HTTP API server ────────────────────────────────────────────────────────────
 # AURA is cloud-native: run `aura serve` to start the API so it can be
 # accessed from web pages, other servers, or any device on the network.
+# The web chat UI is served at the root URL (/).
 server:
   host: 0.0.0.0         # "0.0.0.0" to listen on all interfaces
   port: 8000
@@ -51,3 +67,5 @@ features:
   voice: false          # set true when voice integration is ready
   video: false          # set true when video integration is ready
   screen_share: false   # set true when screen-share integration is ready
+  web_ui: true          # serve the web chat interface at /
+  templates: true       # enable pre-fab template system

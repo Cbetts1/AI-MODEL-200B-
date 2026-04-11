@@ -6,10 +6,16 @@ constrained to a single device — it travels where it is needed.
 
 Endpoints
 ---------
-  POST /v1/chat       Send a message and receive a reply.
-  GET  /v1/health     Health-check / readiness probe.
-  GET  /v1/tools      List available tools.
-  GET  /v1/version    Return the AURA version string.
+  GET  /                Serve the web chat interface.
+  GET  /v1/ui           Serve the web chat interface (alias).
+  POST /v1/chat         Send a message and receive a reply.
+  GET  /v1/health       Health-check / readiness probe.
+  GET  /v1/tools        List available tools.
+  GET  /v1/templates    List available pre-fab templates.
+  POST /v1/template     Activate a pre-fab template.
+  GET  /v1/version      Return the AURA version string.
+  GET  /manifest.json   PWA manifest for installable web app.
+  GET  /sw.js           Service worker for offline/PWA support.
 
 The server is built on Python's standard-library ``http.server`` so it has
 **zero** extra dependencies.  For production deployments behind a reverse
@@ -51,6 +57,26 @@ def _json_response(handler: BaseHTTPRequestHandler, status: int, body: dict) -> 
     handler.wfile.write(payload)
 
 
+def _html_response(handler: BaseHTTPRequestHandler, status: int, html: str) -> None:
+    """Write an HTML response."""
+    payload = html.encode("utf-8")
+    handler.send_response(status)
+    handler.send_header("Content-Type", "text/html; charset=utf-8")
+    handler.send_header("Content-Length", str(len(payload)))
+    handler.end_headers()
+    handler.wfile.write(payload)
+
+
+def _js_response(handler: BaseHTTPRequestHandler, status: int, js: str) -> None:
+    """Write a JavaScript response."""
+    payload = js.encode("utf-8")
+    handler.send_response(status)
+    handler.send_header("Content-Type", "application/javascript; charset=utf-8")
+    handler.send_header("Content-Length", str(len(payload)))
+    handler.end_headers()
+    handler.wfile.write(payload)
+
+
 def _read_json_body(handler: BaseHTTPRequestHandler) -> Optional[dict]:
     """Read and parse the JSON request body, or return *None* on error."""
     length = int(handler.headers.get("Content-Length", 0))
@@ -60,6 +86,49 @@ def _read_json_body(handler: BaseHTTPRequestHandler) -> Optional[dict]:
         return json.loads(handler.rfile.read(length))
     except (json.JSONDecodeError, UnicodeDecodeError):
         return None
+
+
+# ── PWA assets ─────────────────────────────────────────────────────────────────
+
+_PWA_MANIFEST = json.dumps({
+    "name": "AURA — AI Unified Reasoning Architecture",
+    "short_name": "AURA",
+    "description": "Free AI assistant for everyone. Chat, voice, video, and real-world tools.",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#0a0e27",
+    "theme_color": "#0a0e27",
+    "icons": [
+        {
+            "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'>"
+                   "<circle cx='50' cy='50' r='45' fill='%233b5bdb'/>"
+                   "<text x='50' y='65' text-anchor='middle' font-size='40' fill='white'>✦</text></svg>",
+            "sizes": "any",
+            "type": "image/svg+xml"
+        }
+    ]
+})
+
+_SERVICE_WORKER = """\
+// AURA Service Worker — enables PWA install and basic offline support.
+const CACHE_NAME = "aura-v1";
+const OFFLINE_URL = "/";
+
+self.addEventListener("install", (event) => {
+  self.skipWaiting();
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(clients.claim());
+});
+
+self.addEventListener("fetch", (event) => {
+  // Network-first strategy
+  event.respondWith(
+    fetch(event.request).catch(() => caches.match(event.request))
+  );
+});
+"""
 
 
 # ── request handler ────────────────────────────────────────────────────────────
@@ -96,6 +165,22 @@ class AuraAPIHandler(BaseHTTPRequestHandler):
     # ── GET routes ────────────────────────────────────────────────────────────
 
     def do_GET(self) -> None:  # noqa: N802
+        # Web UI
+        if self.path in ("/", "/v1/ui"):
+            from .gui.webui import render_chat_html  # noqa: PLC0415
+            _html_response(self, HTTPStatus.OK, render_chat_html())
+            return
+
+        # PWA manifest
+        if self.path == "/manifest.json":
+            _json_response(self, HTTPStatus.OK, json.loads(_PWA_MANIFEST))
+            return
+
+        # Service worker
+        if self.path == "/sw.js":
+            _js_response(self, HTTPStatus.OK, _SERVICE_WORKER)
+            return
+
         if self.path == "/v1/health":
             _json_response(self, HTTPStatus.OK, {"status": "ok"})
             return
@@ -114,6 +199,14 @@ class AuraAPIHandler(BaseHTTPRequestHandler):
                 for n in self.engine.tool_registry.list_tools()
             ]
             _json_response(self, HTTPStatus.OK, {"tools": tools})
+            return
+
+        if self.path == "/v1/templates":
+            templates = [
+                t.to_dict()
+                for t in self.engine.template_registry.all_templates()
+            ]
+            _json_response(self, HTTPStatus.OK, {"templates": templates})
             return
 
         _json_response(self, HTTPStatus.NOT_FOUND, {"error": "not found"})
@@ -136,6 +229,24 @@ class AuraAPIHandler(BaseHTTPRequestHandler):
             reply = self.engine.chat(body["message"])
             _json_response(self, HTTPStatus.OK, {
                 "reply": reply,
+                "session_id": self.engine.session.conversation_id,
+            })
+            return
+
+        if self.path == "/v1/template":
+            body = _read_json_body(self)
+            if body is None or "template" not in body:
+                _json_response(
+                    self,
+                    HTTPStatus.BAD_REQUEST,
+                    {"error": "request body must be JSON with a 'template' field"},
+                )
+                return
+            greeting = self.engine.apply_template(body["template"])
+            _json_response(self, HTTPStatus.OK, {
+                "reply": greeting,
+                "greeting": greeting,
+                "template": body["template"],
                 "session_id": self.engine.session.conversation_id,
             })
             return
@@ -165,14 +276,20 @@ def run_server(
     """Start the HTTP API server (blocks until interrupted)."""
     handler_cls = make_handler_class(engine, api_token=api_token)
     server = HTTPServer((host, port), handler_cls)
-    print(f"AURA API server listening on http://{host}:{port}")
-    print("Endpoints:")
-    print(f"  POST http://{host}:{port}/v1/chat")
-    print(f"  GET  http://{host}:{port}/v1/health")
-    print(f"  GET  http://{host}:{port}/v1/tools")
-    print(f"  GET  http://{host}:{port}/v1/version")
-    print()
-    print("Press Ctrl-C to stop.")
+    print(f"🚀 AURA v0.3.0 — AI Unified Reasoning Architecture")
+    print(f"")
+    print(f"   Web UI:  http://{host}:{port}/")
+    print(f"")
+    print(f"   API Endpoints:")
+    print(f"     POST http://{host}:{port}/v1/chat")
+    print(f"     GET  http://{host}:{port}/v1/health")
+    print(f"     GET  http://{host}:{port}/v1/tools")
+    print(f"     GET  http://{host}:{port}/v1/templates")
+    print(f"     POST http://{host}:{port}/v1/template")
+    print(f"     GET  http://{host}:{port}/v1/version")
+    print(f"")
+    print(f"   Open the Web UI in your browser to start chatting!")
+    print(f"   Press Ctrl-C to stop.")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
