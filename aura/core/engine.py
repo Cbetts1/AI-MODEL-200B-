@@ -9,6 +9,8 @@ AuraEngine ties together:
   - Tools     : callable tools registry
   - Workflows : multi-step orchestration
   - Templates : pre-fab persona overlays
+  - Cloud     : virtual cloud infrastructure (VirtualCPU, VirtualNetwork,
+                VirtualServers, CloudRouter, VirtualStorage)
 
 Usage example
 -------------
@@ -32,6 +34,7 @@ from ..model.base import ModelBackend
 from ..tools.registry import ToolRegistry
 from ..identity.persona import Persona
 from ..templates.registry import TemplateRegistry, build_default_template_registry
+from ..cloud.cloud_manager import CloudManager
 
 
 class AuraEngine:
@@ -45,6 +48,7 @@ class AuraEngine:
         template_registry: Optional[TemplateRegistry] = None,
         memory_dir: Optional[str] = None,
         resume_session_id: Optional[str] = None,
+        cloud_workers: int = 4,
     ) -> None:
         self.model = model
         self.persona = persona
@@ -54,6 +58,10 @@ class AuraEngine:
         self.session = Session()
         self.dispatcher = Dispatcher(tool_registry=self.tool_registry)
         self.active_template: Optional[str] = None
+
+        # Virtual cloud infrastructure — self-contained, no host-network dependency
+        self.cloud = CloudManager(cpu_workers=cloud_workers)
+        self.cloud.start()
 
         # Seed the session with AURA's system prompt
         self.session.add_message("system", persona.system_prompt())
