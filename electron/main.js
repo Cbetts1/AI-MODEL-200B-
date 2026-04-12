@@ -151,7 +151,7 @@ function showAbout() {
     type: "info",
     title: "About AURA",
     message: "AURA — AI Unified Reasoning Architecture",
-    detail: "Version: 0.5.0\nFree AI for everyone.\n\nDesigned and founded by Christopher Betts.\nLicensed under Apache 2.0.",
+    detail: "Version: 0.7.0\nFree AI for everyone.\n\nDesigned and founded by Christopher Betts.\nLicensed under Apache 2.0.",
     buttons: ["OK"],
   });
 }
