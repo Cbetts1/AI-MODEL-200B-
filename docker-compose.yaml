@@ -3,6 +3,13 @@
 # Usage:
 #   docker compose up --build
 #
+# To enable free 200B-class AI, set one or more API keys before starting:
+#   export GROQ_API_KEY=gsk_...        # https://console.groq.com (free)
+#   export CEREBRAS_API_KEY=csk_...    # https://inference.cerebras.ai (free)
+#   export OPENROUTER_API_KEY=sk-or-.. # https://openrouter.ai (free models)
+#   export TOGETHER_API_KEY=...        # https://api.together.xyz (free credits)
+#   docker compose up --build
+#
 # AURA will be available at http://localhost:8000
 
 services:
@@ -13,10 +20,22 @@ services:
     environment:
       # Set a bearer token for auth (optional — leave empty for open access)
       - AURA_API_TOKEN=${AURA_API_TOKEN:-}
+      # Admin dashboard token — generate with:
+      #   python3 -c "import secrets; print(secrets.token_hex(32))"
+      - AURA_ADMIN_TOKEN=${AURA_ADMIN_TOKEN:-}
+      # Free 200B-class model API keys (all optional — any one unlocks quality AI)
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
+      - CEREBRAS_API_KEY=${CEREBRAS_API_KEY:-}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - TOGETHER_API_KEY=${TOGETHER_API_KEY:-}
+      - HUGGINGFACE_API_KEY=${HUGGINGFACE_API_KEY:-}
     volumes:
       # Persist conversation memory across container restarts
       - aura-memory:/root/.aura/memory
+      # Persist storage (notes, key-value data)
+      - aura-storage:/root/.aura/storage
     restart: unless-stopped
 
 volumes:
   aura-memory:
+  aura-storage:

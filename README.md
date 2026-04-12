@@ -1,6 +1,6 @@
 # AURA — AI Unified Reasoning Architecture
 
-### Free AI for Everyone — v0.6.0
+### Free AI for Everyone — v0.7.0
 
 > Designed and founded by **Christopher Betts**.
 > The core mission: **make AI and its services free to the public**.
@@ -43,6 +43,7 @@ from any browser, APK, or API call.  Zero burden on your phone or laptop.
 | **Tools** | 18 tools: shell, files, web search, calculator, code runner, summarizer, timer, weather, URL reader, notes, translator, image analyzer, APK builder, resume builder, website generator, doc generator |
 | **Agent Loop** | Multi-step ReAct-style agentic tool use — AURA can chain tools automatically |
 | **Workflows** | Multi-step automation (e.g., scaffold & build an Android app) |
+| **Virtual Cloud** | Self-contained VirtualCPU, VirtualNetwork, VirtualServer, CloudRouter, VirtualStorage — all in-process |
 | **Integrations** | Voice, video, screen-sharing via pluggable connectors |
 | **Identity** | Warm, friendly, alive personality — configurable via YAML |
 | **PWA / APK** | Installable as a Progressive Web App on any device; native Android/iOS via Capacitor |
@@ -53,6 +54,26 @@ from any browser, APK, or API call.  Zero burden on your phone or laptop.
 ---
 
 ## ✦ Install AURA
+
+### ⚡ One-Script Install (Linux / macOS / Android)
+
+```bash
+# Clone then run the universal installer — it detects your platform automatically
+git clone https://github.com/Cbetts1/AI-MODEL-200B-.git && cd AI-MODEL-200B-
+bash install.sh
+```
+
+Or install directly from the internet:
+
+```bash
+git clone https://github.com/Cbetts1/AI-MODEL-200B-.git
+cd AI-MODEL-200B-
+bash install.sh
+```
+
+The script auto-detects Linux, macOS, and Termux (Android) and runs the right setup.
+
+---
 
 ### Option A — Install from Browser (PWA — No App Store Required ✅)
 1. Deploy AURA to a free cloud server (see [docs/cloud-deployment.md](docs/cloud-deployment.md))
@@ -71,6 +92,60 @@ Full guide: [docs/app-store-guide.md](docs/app-store-guide.md)
 ### Option D — Apple App Store (iOS / macOS)
 Build with Capacitor (iOS) or Electron (macOS), then submit via App Store Connect.
 Full guide: [docs/app-store-guide.md](docs/app-store-guide.md)
+
+---
+
+## ✦ What's New in v0.7.0
+
+### ☁️ Virtual Cloud Infrastructure — Self-Contained Cloud Layer
+
+AURA v0.7.0 ships a fully self-contained **virtual cloud stack** built entirely
+in Python.  Every AURA deployment now has its own mini cloud that runs without
+any external services, cloud providers, or host-network configuration.
+
+| Component | Description |
+|---|---|
+| **VirtualCPU** | Thread-pool task scheduler; dynamically expand/shrink worker count |
+| **VirtualNetwork** | In-process message bus — internal routing never leaves the Python process |
+| **VirtualServer** | Spawnable compute units with independent route tables |
+| **CloudRouter** | Dynamic HTTP-route registry; routes expand at runtime |
+| **VirtualStorage** | Namespaced persistent storage with auto-expand capability |
+| **CloudManager** | Single orchestrator that wires all the above together |
+
+```python
+from aura.cloud import CloudManager
+
+cloud = CloudManager()
+cloud.start()
+
+# Spawn a virtual server and register routes
+server = cloud.spawn_server("analytics")
+server.register_route("GET /ping", lambda req: {"pong": True})
+
+# Submit an async task to the vCPU
+cloud.submit_task(lambda: print("running in vCPU thread pool"))
+
+print(cloud.status())   # full infra snapshot
+cloud.stop()
+```
+
+### 🌐 11 New API Endpoints (`/v1/cloud/*`)
+
+| Endpoint | Description |
+|---|---|
+| `GET  /v1/cloud/status` | Full virtual-cloud infrastructure snapshot |
+| `GET  /v1/cloud/cpu` | vCPU metrics (workers, tasks queued/completed) |
+| `GET  /v1/cloud/network` | Virtual network topology and address registry |
+| `GET  /v1/cloud/storage` | Storage namespace listing and usage stats |
+| `GET  /v1/cloud/servers` | List all virtual servers and their route tables |
+| `GET  /v1/cloud/routes` | Global route registry |
+| `POST /v1/cloud/servers` | Spawn a new virtual server |
+| `POST /v1/cloud/routes` | Register a new route on an existing server |
+| `POST /v1/cloud/build` | Apply a build action (expand/shrink CPU, add namespace, etc.) |
+| `DELETE /v1/cloud/server` | Destroy a virtual server |
+| `DELETE /v1/cloud/route` | Unregister a route |
+
+### 🧪 475 Tests — Up from 389
 
 ---
 
@@ -259,17 +334,20 @@ See [docs/free-200b-models.md](docs/free-200b-models.md) for full setup guide.
 
 ```
 aura/                   # Core Python package
-  core/                 # Engine, session, memory, dispatcher, agent loop
+  core/                 # Engine, session, memory, dispatcher, agent loop, governance, self-builder
   model/                # Model backend abstraction (local / remote / router)
-  tools/                # 15 tools: shell, files, calculator, weather, URL reader, etc.
+  cloud/                # Virtual cloud layer: CPU, network, storage, servers, router, manager
+  tools/                # 18 tools: shell, files, calculator, weather, URL reader, etc.
   templates/            # Pre-fab template system (20 built-in)
   workflows/            # Multi-step workflow runners
+  storage/              # Pluggable storage (FileStore / SQLiteStore)
+  plugins/              # Dynamic plugin loader
   ui/
-    api.py              # HTTP API server + web UI serving + SSE streaming + admin routes
+    api.py              # HTTP API server + web UI serving + SSE streaming + admin + cloud routes
     admin.py            # Admin API logic: metrics, logs, restart, cloud status
     cli.py              # Rich terminal CLI
     gui/
-      webui.py          # Self-contained HTML/CSS/JS chat interface
+      webui.py          # Self-contained HTML/CSS/JS chat interface (PWA-ready)
   integrations/         # Voice, video, screen-share connectors
   identity/             # Persona and backstory
 
@@ -292,13 +370,15 @@ www/                    # Capacitor web assets (Android / iOS native packaging)
 
 capacitor.config.json   # Capacitor config for Android / iOS native builds
 
+install.sh              # Universal one-script installer (Linux / macOS / Termux auto-detect)
 scripts/
-  install_linux.sh      # One-shot Linux setup
-  install_termux.sh     # One-shot Termux/Android setup
+  install_linux.sh      # Linux setup
+  install_macos.sh      # macOS setup (Homebrew)
+  install_termux.sh     # Termux / Android setup
 
-tests/                  # 252 pytest unit tests
+tests/                  # 475 pytest unit tests
 Dockerfile              # Container image for cloud deployment
-docker-compose.yaml     # One-command cloud deployment
+docker-compose.yaml     # One-command cloud deployment (includes API key pass-through)
 
 setup.py                # pip-installable package
 requirements.txt        # Python dependencies
@@ -309,16 +389,22 @@ CODE_OF_CONDUCT.md      # Community standards
 
 ---
 
-## ✦ Quick Start (Linux)
+## ✦ Quick Start (Linux / macOS)
 
 ```bash
 # 1. Clone
 git clone https://github.com/Cbetts1/AI-MODEL-200B-.git && cd AI-MODEL-200B-
 
-# 2. Install
-pip install -e .
+# 2. Install (one script — detects Linux and macOS automatically)
+bash install.sh
 
-# 3. Run the Web UI (open http://localhost:8000 in your browser)
+# 3. Activate the virtualenv
+source .venv/bin/activate
+
+# 4. (Optional) Set a free API key for 200B-class AI
+export GROQ_API_KEY=gsk_...   # https://console.groq.com — free
+
+# 5. Run the Web UI (open http://localhost:8000 in your browser)
 aura serve
 
 # Or use the CLI
@@ -328,7 +414,11 @@ aura chat
 ## ✦ Quick Start (Termux / Android)
 
 ```bash
+# Inside Termux:
+bash install.sh
+# OR directly:
 bash scripts/install_termux.sh
+
 aura serve    # then open http://localhost:8000 in your browser
 ```
 
@@ -431,20 +521,28 @@ guidelines.
 - [x] Modular repo scaffold
 - [x] Core engine with session & memory
 - [x] Pluggable model backend (local + remote)
-- [x] Tool registry with built-in tools (10 tools)
+- [x] Tool registry with built-in tools (18 tools)
 - [x] CLI interface
 - [x] HTTP/JSON API server (cloud-native)
 - [x] Docker deployment
 - [x] **Web Chat Interface** — responsive, beautiful, PWA-ready
-- [x] **Pre-fab templates** — 10 ready-to-use specializations
-- [x] **New tools** — calculator, code runner, summarizer, timer
-- [x] **Enhanced persona** — warm, friendly, alive personality
+- [x] **Pre-fab templates** — 20 ready-to-use specializations
+- [x] **Model Router** — free 200B-class AI via Groq, Cerebras, OpenRouter, Together AI
+- [x] **Agent Loop** — multi-step ReAct-style agentic tool use
+- [x] **SSE Streaming** — real-time token streaming in the web UI
+- [x] **Admin API** — secure remote dashboard at `/admin`
+- [x] **Governance Layer** — ethical & legal guardrails (always on)
+- [x] **Self-Build System** — human-in-the-loop self-improvement proposals
+- [x] **Plugin System** — dynamic tool loading from plugin directories
+- [x] **Pluggable Storage** — FileStore + SQLiteStore
+- [x] **Virtual Cloud Layer** — self-contained VirtualCPU, VirtualNetwork, VirtualServer, CloudRouter, VirtualStorage
+- [x] **Universal Installer** — one script for Linux, macOS, Termux/Android
 - [x] Open-source license (Apache 2.0)
 - [x] Community guidelines (CONTRIBUTING, CODE_OF_CONDUCT)
 - [ ] WebRTC voice / video calls
 - [ ] Screen sharing with OCR
-- [ ] APK auto-build pipeline
-- [ ] Fine-tuned 200B-parameter model
+- [ ] APK auto-build CI pipeline
+- [ ] Fine-tuned 200B-parameter model weights
 - [ ] Multi-user session management
 - [ ] Plugin marketplace
 
